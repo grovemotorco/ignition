@@ -1,0 +1,177 @@
+---
+title: Writing Recipes
+description: Recipe patterns, variables, composition, and error handling.
+---
+
+Recipes are TypeScript files that describe the desired state of a remote host. They default-export an async function that receives an `ExecutionContext`.
+
+## Recipe format
+
+```typescript
+import type { ExecutionContext } from "@grovemotorco/ignition"
+import { createResources } from "@grovemotorco/ignition"
+
+export default async function (ctx: ExecutionContext) {
+  const { apt, exec, file, directory, service } = createResources(ctx)
+
+  await apt({ name: "nginx", state: "present" })
+  await service({ name: "nginx", state: "started" })
+}
+```
+
+The `createResources(ctx)` factory returns all five built-in resources bound to the current context. Destructure the ones you need.
+
+## Resource ordering
+
+Resources execute sequentially in the order you write them. This is by design — provisioning steps often depend on previous ones (install a package before configuring it, write a config file before restarting the service).
+
+```typescript
+await apt({ name: "nginx", state: "present" }) // 1. install
+await file({ path: "/etc/nginx/app.conf", content }) // 2. configure
+await service({ name: "nginx", state: "restarted" }) // 3. restart
+```
+
+## Variables
+
+The execution context carries variables merged from multiple sources. Access them via `ctx.vars`:
+
+```typescript
+export default async function (ctx: ExecutionContext) {
+  const { file } = createResources(ctx)
+
+  const domain = (ctx.vars.domain as string) ?? "localhost"
+
+  await file({
+    path: "/etc/nginx/sites-available/app.conf",
+    content: `server_name ${domain};`,
+  })
+}
+```
+
+At recipe start, variables are merged with highest precedence first:
+
+1. `--var` CLI flags
+2. Config file `vars`
+3. Host-level vars (in inventory)
+4. Group-level vars (in inventory)
+5. Global inventory vars
+
+### Setting variables
+
+Write to the current scope with `setVar()`:
+
+```typescript
+ctx.setVar("app_version", "2.1.0")
+```
+
+### Scoped variables
+
+Use `withVars()` to create a temporary scope. Variables set inside the scope don't leak to the outer context:
+
+```typescript
+await ctx.withVars({ port: 8080 }, async () => {
+  const port = ctx.vars.port // 8080
+  await file({ path: "/etc/app.conf", content: `port=${port}` })
+})
+// ctx.vars.port is back to its previous value (or undefined)
+```
+
+## Conditional logic
+
+Use standard TypeScript control flow:
+
+```typescript
+export default async function (ctx: ExecutionContext) {
+  const { apt, exec, service } = createResources(ctx)
+
+  if (ctx.vars.install_monitoring) {
+    await apt({ name: "prometheus-node-exporter", state: "present" })
+    await service({ name: "prometheus-node-exporter", state: "started" })
+  }
+
+  // Use host facts for platform-specific logic
+  if (ctx.facts?.arch === "aarch64") {
+    await exec({ command: "echo 'Running on ARM'" })
+  }
+}
+```
+
+## Recipe metadata
+
+Export a `meta` object to add a description and tags:
+
+```typescript
+export const meta = {
+  description: "Deploy the web application",
+  tags: ["web", "deploy"] as const,
+}
+
+export default async function (ctx: ExecutionContext) {
+  // ...
+}
+```
+
+Filter recipes by tag with `--tags`:
+
+```bash
+ignition run deploy.ts @web -i hosts.ts --tags web,deploy
+```
+
+When `--tags` is set, the recipe only runs if its tags overlap with the selected tags.
+
+## Composition
+
+Extract shared logic into functions and import them across recipes:
+
+```typescript title="lib/common.ts"
+import type { ExecutionContext } from "@grovemotorco/ignition"
+import { createResources } from "@grovemotorco/ignition"
+
+export async function hardenSSH(ctx: ExecutionContext) {
+  const { file, service } = createResources(ctx)
+  await file({
+    path: "/etc/ssh/sshd_config.d/hardening.conf",
+    content: "PermitRootLogin no\nPasswordAuthentication no\n",
+    mode: "600",
+  })
+  await service({ name: "sshd", state: "restarted" })
+}
+```
+
+```typescript title="deploy.ts"
+import { hardenSSH } from "./lib/common.ts"
+
+export default async function (ctx: ExecutionContext) {
+  const { apt } = createResources(ctx)
+  await apt({ name: "nginx", state: "present" })
+  await hardenSSH(ctx)
+}
+```
+
+## Error handling
+
+By default, Ignition uses `fail-fast` mode — the first resource failure stops execution. You can catch errors in your recipe:
+
+```typescript
+export default async function (ctx: ExecutionContext) {
+  const { exec } = createResources(ctx)
+
+  try {
+    await exec({ command: "some-risky-command" })
+  } catch (err) {
+    await exec({ command: "echo 'Fallback command'" })
+  }
+}
+```
+
+For broader control, use `--error-mode`:
+
+```bash
+# Run everything, report failures at the end
+ignition run deploy.ts @web --error-mode fail-at-end
+
+# Log failures and keep going
+ignition run deploy.ts @web --error-mode ignore
+```
+
+See [Error Handling](/docs/guides/error-handling) for details on error modes, retries, and timeouts.

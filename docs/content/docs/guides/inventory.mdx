@@ -1,0 +1,170 @@
+---
+title: Inventory & Targets
+description: Define hosts, groups, variables, and target selection.
+---
+
+An inventory maps logical names to SSH connection details. It's a TypeScript file that default-exports an `Inventory` object.
+
+## Inventory format
+
+```typescript
+import type { Inventory } from "@grovemotorco/ignition"
+
+export default {
+  defaults: { user: "deploy", port: 22 },
+  vars: { env: "production", domain: "example.com" },
+  groups: {
+    web: {
+      vars: { role: "webserver", http_port: 80 },
+      hosts: {
+        "web-1": { hostname: "10.0.1.10", vars: { server_id: 1 } },
+        "web-2": { hostname: "10.0.1.11", vars: { server_id: 2 } },
+      },
+    },
+    db: {
+      vars: { role: "database", db_port: 5432 },
+      hosts: {
+        "db-1": { hostname: "10.0.2.10" },
+      },
+    },
+  },
+  hosts: {
+    bastion: { hostname: "203.0.113.1", user: "admin" },
+  },
+} satisfies Inventory
+```
+
+## Structure
+
+### `defaults`
+
+Connection defaults applied to all hosts:
+
+| Field        | Type     | Default  |
+| ------------ | -------- | -------- |
+| `user`       | `string` | `"root"` |
+| `port`       | `number` | `22`     |
+| `privateKey` | `string` | —        |
+
+### `vars`
+
+Global variables available to all hosts. These are the lowest-precedence variables.
+
+### `groups`
+
+Named groups of hosts. Each group can have its own `vars` and a `hosts` map.
+
+### `hosts`
+
+Standalone hosts not belonging to any group. Each host requires a `hostname` and can override `user`, `port`, `privateKey`, and set host-specific `vars`.
+
+## Variable precedence
+
+Variables merge with higher precedence winning:
+
+```
+CLI --var flags  >  config vars  >  host vars  >  group vars  >  global vars
+```
+
+For example, if the global `vars` set `env: "production"` and a host has `vars: { env: "staging" }`, that host sees `env: "staging"`.
+
+Variables are accessible in recipes via `ctx.vars` and in templates via the `vars` parameter.
+
+## Targeting hosts
+
+Targets tell Ignition which hosts to run against. Pass them as positional arguments after the recipe:
+
+```bash
+ignition run deploy.ts <targets...> -i hosts.ts
+```
+
+### Target formats
+
+| Format    | Example               | Description                     |
+| --------- | --------------------- | ------------------------------- |
+| Group     | `@web`                | All hosts in a group            |
+| Host name | `web-1`               | Single host from inventory      |
+| Ad-hoc    | `admin@10.0.1.5:2222` | Direct SSH, no inventory needed |
+| Multiple  | `web-1 web-2 @db`     | Space-separated mix             |
+
+### Ad-hoc targets
+
+Ad-hoc targets don't require an inventory file:
+
+```bash
+# Simple
+ignition run deploy.ts admin@my-server.com
+
+# With custom port
+ignition run deploy.ts admin@my-server.com:2222
+
+# Mix ad-hoc and inventory targets
+ignition run deploy.ts @web admin@10.0.0.5 -i hosts.ts
+```
+
+## Inspecting the inventory
+
+List hosts in an inventory file:
+
+```bash
+ignition inventory hosts.ts
+```
+
+This shows all hosts with their resolved connection details and variables.
+
+## Multi-tier example
+
+A production-like inventory with web, app, and database tiers:
+
+```typescript
+import type { Inventory } from "@grovemotorco/ignition"
+
+export default {
+  defaults: { user: "deploy", port: 22 },
+  vars: { env: "production" },
+  groups: {
+    web: {
+      vars: { role: "webserver", http_port: 80, https_port: 443 },
+      hosts: {
+        "web-1": { hostname: "10.0.1.10", vars: { server_id: 1, primary: true } },
+        "web-2": { hostname: "10.0.1.11", vars: { server_id: 2 } },
+        "web-3": { hostname: "10.0.1.12", vars: { server_id: 3 } },
+      },
+    },
+    app: {
+      vars: { role: "application", app_port: 3000, node_env: "production" },
+      hosts: {
+        "app-1": { hostname: "10.0.2.10" },
+        "app-2": { hostname: "10.0.2.11" },
+      },
+    },
+    db: {
+      vars: { role: "database", db_port: 5432, db_name: "myapp" },
+      hosts: {
+        "db-primary": { hostname: "10.0.3.10", vars: { db_role: "primary" } },
+        "db-replica": { hostname: "10.0.3.11", vars: { db_role: "replica" } },
+      },
+    },
+  },
+  hosts: {
+    bastion: { hostname: "203.0.113.1", user: "admin" },
+    monitor: { hostname: "10.0.4.10" },
+  },
+} satisfies Inventory
+```
+
+Target by tier:
+
+```bash
+ignition run deploy-web.ts @web -i hosts.ts
+ignition run deploy-db.ts @db -i hosts.ts
+ignition run deploy.ts @web @app @db -i hosts.ts
+```
+
+## Typo suggestions
+
+If you misspell a host or group name, Ignition suggests close matches:
+
+```
+Unknown host "wbe-1" -- not found in inventory and not an ad-hoc target. Did you mean "web-1"?
+```

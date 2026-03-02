@@ -1,0 +1,108 @@
+---
+title: Configuration
+description: Project-level configuration with ignition.config.ts.
+---
+
+Ignition supports an optional configuration file that sets project-level defaults. This avoids passing the same flags on every command.
+
+## Config file
+
+Create `ignition.config.ts` in your project root:
+
+```typescript
+import type { IgnitionConfig } from "@grovemotorco/ignition"
+
+export default {
+  inventory: "inventory.ts",
+  verbose: true,
+  parallelism: 10,
+  errorMode: "fail-at-end",
+} satisfies IgnitionConfig
+```
+
+Ignition auto-discovers this file in the current working directory.
+
+## All options
+
+| Field             | Type                                       | Default        | Description                                 |
+| ----------------- | ------------------------------------------ | -------------- | ------------------------------------------- |
+| `inventory`       | `string`                                   | —              | Path to inventory file                      |
+| `format`          | `"pretty" \| "json" \| "minimal"`          | `"pretty"`     | Output format                               |
+| `errorMode`       | `"fail-fast" \| "fail-at-end" \| "ignore"` | `"fail-fast"`  | Error handling strategy                     |
+| `parallelism`     | `number`                                   | `5`            | Max concurrent hosts                        |
+| `hostTimeout`     | `number`                                   | `0`            | Per-host timeout in ms (0 = unlimited)      |
+| `resourceTimeout` | `number`                                   | `30000`        | Per-resource timeout in ms                  |
+| `retries`         | `number`                                   | `2`            | Retry attempts for transient failures       |
+| `retryDelay`      | `number`                                   | `1000`         | Initial retry backoff in ms                 |
+| `multiplex`       | `boolean`                                  | `true`         | SSH connection multiplexing                 |
+| `hostKeyPolicy`   | `"strict" \| "accept-new" \| "off"`        | `"accept-new"` | SSH host key verification                   |
+| `dashboard`       | `string`                                   | —              | Dashboard address (e.g. `"127.0.0.1:9090"`) |
+| `logDir`          | `string`                                   | —              | Directory for NDJSON log files              |
+| `verbose`         | `boolean`                                  | `false`        | Show SSH commands and detailed output       |
+| `cache`           | `boolean`                                  | `false`        | Enable check result caching                 |
+| `cacheTtl`        | `number`                                   | `600000`       | Cache entry lifetime in ms                  |
+| `cacheClear`      | `boolean`                                  | `false`        | Clear cache before running                  |
+| `vars`            | `Record<string, unknown>`                  | —              | Default variables                           |
+
+## Precedence
+
+CLI flags always override config file values:
+
+```
+CLI flag  >  config file  >  hardcoded default
+```
+
+For example, if your config sets `parallelism: 10` and you pass `--parallelism 3`, Ignition uses 3.
+
+## Examples
+
+### Development config
+
+```typescript
+import type { IgnitionConfig } from "@grovemotorco/ignition"
+
+export default {
+  inventory: "inventory.ts",
+  verbose: true,
+  hostKeyPolicy: "accept-new",
+} satisfies IgnitionConfig
+```
+
+### CI/CD config
+
+```typescript
+import type { IgnitionConfig } from "@grovemotorco/ignition"
+
+export default {
+  inventory: "production.ts",
+  errorMode: "fail-fast",
+  parallelism: 20,
+  logDir: "./logs",
+  format: "json",
+} satisfies IgnitionConfig
+```
+
+### Dashboard-enabled config
+
+```typescript
+import type { IgnitionConfig } from "@grovemotorco/ignition"
+
+export default {
+  inventory: "inventory.ts",
+  dashboard: "127.0.0.1:9090",
+  verbose: true,
+} satisfies IgnitionConfig
+```
+
+## Validation
+
+Ignition validates the config file on load. Invalid values produce clear error messages:
+
+```
+Invalid parallelism "-1" in ignition.config.ts. Must be a positive integer.
+Invalid errorMode "bogus" in ignition.config.ts. Must be one of: fail-fast, fail-at-end, ignore
+```
+
+## Safety note
+
+The `confirm` flag is intentionally not configurable via the config file. It must be passed explicitly on the CLI to prevent accidental applies.

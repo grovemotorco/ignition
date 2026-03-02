@@ -1,0 +1,14 @@
+{
+  "title": "Guides",
+  "icon": "BookOpen",
+  "pages": [
+    "recipes",
+    "resources",
+    "inventory",
+    "templates",
+    "configuration",
+    "dashboard",
+    "error-handling",
+    "sandbox"
+  ]
+}

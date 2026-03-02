@@ -1,0 +1,41 @@
+---
+title: Ignition
+description: Server provisioning in TypeScript
+---
+
+Ignition is a TypeScript-native server provisioning tool. It uses SSH to push declarative resource configurations to remote hosts, inspired by Pulumi's async API and Ansible's agentless model.
+
+## Quick start
+
+<Cards>
+  <Card title="Installation" href="/docs/getting-started/installation">
+    Install Ignition and its prerequisites.
+  </Card>
+  <Card title="Your First Recipe" href="/docs/getting-started/first-recipe">
+    Write a recipe, dry-run it, and apply it to a remote host.
+  </Card>
+  <Card title="Project Setup" href="/docs/getting-started/project-setup">
+    Scaffold a new Ignition project and configure it.
+  </Card>
+</Cards>
+
+## Resources
+
+Ignition ships with five built-in resources:
+
+| Resource                                           | Purpose                                      |
+| -------------------------------------------------- | -------------------------------------------- |
+| [`apt`](/docs/reference/resources/apt)             | Manage system packages                       |
+| [`file`](/docs/reference/resources/file)           | Manage file contents, permissions, ownership |
+| [`directory`](/docs/reference/resources/directory) | Manage directories                           |
+| [`exec`](/docs/reference/resources/exec)           | Run arbitrary commands                       |
+| [`service`](/docs/reference/resources/service)     | Manage systemd services                      |
+
+## Key features
+
+- **TypeScript recipes** — full language power with type safety and IDE support
+- **Check-then-apply** — every resource checks before mutating, giving free dry-runs
+- **Agentless** — nothing to install on target hosts, just SSH
+- **Idempotent** — safe to run repeatedly, only changes what needs changing
+- **Parallel execution** — bounded worker pool for multi-host runs
+- **Real-time dashboard** — web UI for monitoring provisioning runs

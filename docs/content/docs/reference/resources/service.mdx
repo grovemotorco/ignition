@@ -1,0 +1,113 @@
+---
+title: service
+description: Manage systemd services.
+---
+
+The `service` resource manages systemd services. States `started` and `stopped` are declarative (check first), while `restarted` and `reloaded` are imperative (always execute).
+
+## Input
+
+| Field     | Type                                                  | Default | Required | Description                              |
+| --------- | ----------------------------------------------------- | ------- | -------- | ---------------------------------------- |
+| `name`    | `string`                                              | —       | Yes      | Service name (e.g. `"nginx"`)            |
+| `state`   | `"started" \| "stopped" \| "restarted" \| "reloaded"` | —       | No       | Target service state                     |
+| `enabled` | `boolean`                                             | —       | No       | Whether the service should start at boot |
+
+At least one of `state` or `enabled` should be provided.
+
+## Output
+
+| Field     | Type      | Description                                            |
+| --------- | --------- | ------------------------------------------------------ |
+| `name`    | `string`  | Service name                                           |
+| `active`  | `string`  | Current active state (e.g. `"active"`, `"inactive"`)   |
+| `enabled` | `string`  | Current enabled state (e.g. `"enabled"`, `"disabled"`) |
+| `changed` | `boolean` | Whether the service was modified                       |
+
+## Behavior
+
+### Check phase
+
+1. Queries `systemctl is-active <name>` for the running state.
+2. Queries `systemctl is-enabled <name>` for the boot state.
+3. For `state: "started"` — in desired state if active.
+4. For `state: "stopped"` — in desired state if inactive.
+5. For `state: "restarted"` / `"reloaded"` — always returns not in desired state (imperative).
+6. For `enabled` — checks independently of `state`.
+
+### Apply phase
+
+| State       | Command                         |
+| ----------- | ------------------------------- |
+| `started`   | `sudo systemctl start <name>`   |
+| `stopped`   | `sudo systemctl stop <name>`    |
+| `restarted` | `sudo systemctl restart <name>` |
+| `reloaded`  | `sudo systemctl reload <name>`  |
+
+| Enabled | Command                         |
+| ------- | ------------------------------- |
+| `true`  | `sudo systemctl enable <name>`  |
+| `false` | `sudo systemctl disable <name>` |
+
+`state` and `enabled` are applied independently.
+
+## Annotations
+
+| Property              | Value                      |
+| --------------------- | -------------------------- |
+| Nature                | Imperative (mixed)         |
+| Idempotent            | No (due to restart/reload) |
+| Destructive           | No                         |
+| Read-only             | No                         |
+| Required capabilities | `exec`                     |
+
+## Examples
+
+### Start and enable
+
+```typescript
+await service({ name: "nginx", state: "started", enabled: true })
+```
+
+### Restart after config change
+
+```typescript
+await file({
+  path: "/etc/nginx/nginx.conf",
+  template: nginxConf,
+  mode: "644",
+})
+await service({ name: "nginx", state: "restarted" })
+```
+
+`restarted` always runs `systemctl restart`, regardless of current state.
+
+### Stop and disable
+
+```typescript
+await service({ name: "apache2", state: "stopped", enabled: false })
+```
+
+### Reload configuration
+
+```typescript
+await service({ name: "nginx", state: "reloaded" })
+```
+
+Like `restarted`, `reloaded` always executes — it doesn't check current state first.
+
+### Enable at boot without changing state
+
+```typescript
+await service({ name: "nginx", enabled: true })
+```
+
+Only affects the boot behavior. Doesn't start or stop the service.
+
+## Gotchas
+
+- `started` and `stopped` are declarative — they check current state before acting. `restarted` and `reloaded` are imperative — they always execute.
+- In check mode, `restarted` and `reloaded` always show as "would change".
+- `enabled` is independent of `state`. You can enable a stopped service or disable a running one.
+- Requires `sudo` on the remote host for `systemctl` operations.
+- Only works with systemd. Doesn't support other init systems.

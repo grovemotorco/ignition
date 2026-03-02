@@ -1,0 +1,99 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@theme {
+  /* Brand — vermillion from reference images */
+  --color-brand: #c44d2b;
+  --color-brand-foreground: #f0e4d0;
+  --color-brand-light: #d4603a;
+  --color-brand-dark: #a43820;
+
+  /* Accents — extracted from landscape/cityscape palette */
+  --color-accent-warm: #c8a050;
+  --color-accent-gold: #d4b868;
+  --color-accent-teal: #5aafa0;
+  --color-accent-sage: #8aaa90;
+  --color-accent-sky: #8cbfb0;
+
+  /* Surfaces */
+  --color-surface-dark: #1e2a28;
+  --color-surface-cream: #f0e4d0;
+
+  /* Terminal — derived from image palette darks + syntax colors */
+  --color-terminal-bg: #1e2a28;
+  --color-terminal-fg: #e8dcca;
+  --color-terminal-green: #5aaf78;
+  --color-terminal-yellow: #d4b868;
+  --color-terminal-blue: #5aafa0;
+  --color-terminal-dim: #6a8a70;
+  --color-terminal-tilde: #c8a050;
+
+  /* Syntax — for inline code/landing page highlights */
+  --color-syntax-keyword: #c44d2b;
+  --color-syntax-string: #d4b868;
+  --color-syntax-function: #5aafa0;
+  --color-syntax-comment: #6a8a70;
+  --color-syntax-type: #c8a050;
+  --color-syntax-variable: #e8dcca;
+  --color-syntax-literal: #d4603a;
+  --color-syntax-property: #8cbfb0;
+  --color-syntax-punctuation: #7a9a80;
+  --color-syntax-operator: #8aaa90;
+
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-fd-background: #f5ede0;
+  --color-fd-card: #f5ede0;
+  --color-fd-popover: #f5ede0;
+  --color-fd-muted: #ede4d4;
+  --color-fd-secondary: #ede4d4;
+  --color-fd-accent: #e8dcca80;
+  --color-fd-border: rgba(208, 196, 174, 0.5);
+}
+
+@theme inline {
+  --animate-terminal-blink: terminal-blink 1s step-end infinite;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-slide-up: slide-up 0.6s ease-out both;
+
+  @keyframes terminal-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+:root {
+  --frame-border: rgba(240, 228, 208, 0.16);
+}
+
+.dark {
+  --frame-border: rgba(240, 228, 208, 0.11);
+}

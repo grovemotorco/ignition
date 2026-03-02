@@ -1,0 +1,223 @@
+---
+title: Custom Resources
+description: Implement your own resources with ResourceDefinition.
+---
+
+Ignition's resource system is extensible. You can create custom resources by implementing the `ResourceDefinition` interface.
+
+## The ResourceDefinition interface
+
+```typescript
+interface ResourceDefinition<TInput, TOutput> {
+  readonly type: string
+  readonly schema?: ResourceSchema
+  formatName(input: TInput): string
+  check(ctx: ExecutionContext, input: TInput): Promise<CheckResult<TOutput>>
+  apply(ctx: ExecutionContext, input: TInput): Promise<TOutput>
+}
+```
+
+| Method       | Purpose                                                                  |
+| ------------ | ------------------------------------------------------------------------ |
+| `type`       | Unique lowercase identifier (e.g. `"user"`)                              |
+| `formatName` | Returns a human-readable name for display. Must be pure (no I/O).        |
+| `check`      | Read-only. Returns current state and whether the resource needs changes. |
+| `apply`      | Mutating. Converges to the desired state and returns the output.         |
+
+## Implementing check()
+
+`check()` must be side-effect-free. It inspects the remote host and returns a `CheckResult`:
+
+```typescript
+async check(
+  ctx: ExecutionContext,
+  input: UserInput,
+): Promise<CheckResult<UserOutput>> {
+  const result = await ctx.connection.exec(`id -u ${shellQuote(input.name)}`)
+  const exists = result.exitCode === 0
+
+  if (input.state === "absent") {
+    return exists
+      ? { inDesiredState: false, current: { exists: true }, desired: { state: "absent" } }
+      : { inDesiredState: true, current: { exists: false }, desired: { state: "absent" }, output: { name: input.name, changed: false } }
+  }
+
+  if (!exists) {
+    return { inDesiredState: false, current: { exists: false }, desired: { state: "present" } }
+  }
+
+  return {
+    inDesiredState: true,
+    current: { exists: true },
+    desired: { state: "present" },
+    output: { name: input.name, changed: false },
+  }
+}
+```
+
+Key rules:
+
+- Return `inDesiredState: true` with `output` when no changes are needed
+- Return `inDesiredState: false` without `output` when changes are needed
+- Include `current` and `desired` for diff display
+
+## Implementing apply()
+
+`apply()` makes changes to converge the host to the desired state:
+
+```typescript
+async apply(ctx: ExecutionContext, input: UserInput): Promise<UserOutput> {
+  if (input.state === "absent") {
+    await ctx.connection.exec(`sudo userdel ${shellQuote(input.name)}`)
+    return { name: input.name, changed: true }
+  }
+
+  await ctx.connection.exec(
+    `sudo useradd -m -s /bin/bash ${shellQuote(input.name)}`,
+  )
+  return { name: input.name, changed: true }
+}
+```
+
+## Shell quoting
+
+Always quote values interpolated into shell commands:
+
+```typescript
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`
+}
+```
+
+## Capability checks
+
+Use `requireCapability()` to assert the transport supports what you need:
+
+```typescript
+import { requireCapability } from "@grovemotorco/ignition"
+
+async check(ctx: ExecutionContext, input: UserInput) {
+  requireCapability(ctx, "exec", "user")
+  // ...
+}
+```
+
+This throws a `CapabilityError` if the transport doesn't support the required capability.
+
+## Complete example
+
+A `user` resource that ensures a system user exists:
+
+```typescript
+import type {
+  CheckResult,
+  ExecutionContext,
+  ResourceCallMeta,
+  ResourceDefinition,
+} from "@grovemotorco/ignition"
+import { executeResource, requireCapability } from "@grovemotorco/ignition"
+
+interface UserInput {
+  readonly name: string
+  readonly shell?: string
+  readonly state?: "present" | "absent"
+}
+
+interface UserOutput {
+  readonly name: string
+  readonly changed: boolean
+}
+
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`
+}
+
+const userDefinition: ResourceDefinition<UserInput, UserOutput> = {
+  type: "user",
+
+  formatName(input: UserInput): string {
+    return input.name
+  },
+
+  async check(ctx: ExecutionContext, input: UserInput): Promise<CheckResult<UserOutput>> {
+    requireCapability(ctx, "exec", "user")
+    const state = input.state ?? "present"
+    const result = await ctx.connection.exec(`id -u ${shellQuote(input.name)}`)
+    const exists = result.exitCode === 0
+
+    if (state === "absent") {
+      return exists
+        ? { inDesiredState: false, current: { exists: true }, desired: { state: "absent" } }
+        : {
+            inDesiredState: true,
+            current: { exists: false },
+            desired: { state: "absent" },
+            output: { name: input.name, changed: false },
+          }
+    }
+
+    if (!exists) {
+      return {
+        inDesiredState: false,
+        current: { exists: false },
+        desired: { state: "present", shell: input.shell },
+      }
+    }
+
+    return {
+      inDesiredState: true,
+      current: { exists: true },
+      desired: { state: "present" },
+      output: { name: input.name, changed: false },
+    }
+  },
+
+  async apply(ctx: ExecutionContext, input: UserInput): Promise<UserOutput> {
+    requireCapability(ctx, "exec", "user")
+    const state = input.state ?? "present"
+
+    if (state === "absent") {
+      await ctx.connection.exec(`sudo userdel -r ${shellQuote(input.name)}`)
+      return { name: input.name, changed: true }
+    }
+
+    const shell = input.shell ?? "/bin/bash"
+    await ctx.connection.exec(`sudo useradd -m -s ${shellQuote(shell)} ${shellQuote(input.name)}`)
+    return { name: input.name, changed: true }
+  },
+}
+
+export function createUser(ctx: ExecutionContext) {
+  return (input: UserInput, meta?: ResourceCallMeta) =>
+    executeResource(ctx, userDefinition, input, ctx.resourcePolicy, meta)
+}
+```
+
+Use it in a recipe:
+
+```typescript
+import { createUser } from "./resources/user.ts"
+
+export default async function (ctx: ExecutionContext) {
+  const user = createUser(ctx)
+  await user({ name: "deploy", shell: "/bin/bash" })
+}
+```
+
+## Registering with ResourceRegistry
+
+Register custom resources for schema generation and agent discoverability:
+
+```typescript
+import { ResourceRegistry, defaultRegistry } from "@grovemotorco/ignition"
+
+const registry = new ResourceRegistry()
+
+// Copy built-in resources
+for (const def of defaultRegistry.definitions()) {
+  registry.register(def)
+}
+
+// Add custom resource
+registry.register(userDefinition)
+```

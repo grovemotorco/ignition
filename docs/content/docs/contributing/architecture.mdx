@@ -1,0 +1,144 @@
+---
+title: Architecture
+description: Module overview, data flow, and key design decisions.
+---
+
+## Data flow
+
+```
+CLI args
+  → parse targets
+  → resolve inventory (load .ts file via dynamic import)
+  → load recipe (.ts file via dynamic import)
+  → for each host (bounded parallelism):
+      create SystemSSHConnection (ssh/scp via Bun.spawn)
+      → ping (verify connectivity)
+      → probe host facts (OS, pkg manager, init system, arch)
+      → create ExecutionContext (one per host per run)
+      → execute recipe(ctx)
+      → accumulate results into RunSummary
+  → format output (pretty / json / minimal)
+  → exit code (0 = success, 1 = failures)
+```
+
+## Module overview
+
+### `src/core/`
+
+The engine.
+
+| File           | Purpose                                                     |
+| -------------- | ----------------------------------------------------------- |
+| `types.ts`     | All core interfaces and types                               |
+| `resource.ts`  | `executeResource()` — the check-then-apply lifecycle engine |
+| `context.ts`   | `ExecutionContextImpl` — per-host execution state           |
+| `runner.ts`    | `runRecipe()` — multi-host orchestration                    |
+| `errors.ts`    | Tagged error hierarchy                                      |
+| `cache.ts`     | Check result caching (memory and file)                      |
+| `facts.ts`     | Host platform detection                                     |
+| `registry.ts`  | Resource registry and schema generation                     |
+| `serialize.ts` | Deterministic JSON and field redaction                      |
+
+### `src/ssh/`
+
+SSH transport.
+
+| File            | Purpose                                                           |
+| --------------- | ----------------------------------------------------------------- |
+| `types.ts`      | `Transport` interface, capabilities, config types                 |
+| `connection.ts` | `SystemSSHConnection` — shells out to `ssh`/`scp` via `Bun.spawn` |
+
+### `src/resources/`
+
+Built-in resources.
+
+| File           | Purpose                                          |
+| -------------- | ------------------------------------------------ |
+| `index.ts`     | `createResources()` factory                      |
+| `exec.ts`      | Imperative command execution                     |
+| `file.ts`      | Declarative file management (SHA-256 comparison) |
+| `apt.ts`       | Declarative package management                   |
+| `service.ts`   | Systemd service management (mixed)               |
+| `directory.ts` | Declarative directory management                 |
+
+### `src/recipe/` and `src/inventory/`
+
+| File                  | Purpose                                              |
+| --------------------- | ---------------------------------------------------- |
+| `recipe/loader.ts`    | Dynamic import of recipe `.ts` files                 |
+| `recipe/types.ts`     | `RecipeFunction`, `RecipeMeta`                       |
+| `inventory/loader.ts` | Dynamic import of inventory files, target resolution |
+| `inventory/types.ts`  | `Inventory`, `Host`, `HostGroup`, `ResolvedHost`     |
+
+### `src/output/`
+
+Output and observability.
+
+| File          | Purpose                                                 |
+| ------------- | ------------------------------------------------------- |
+| `events.ts`   | `EventBus`, event types, `NdjsonStream`                 |
+| `reporter.ts` | `PrettyReporter` (spinners, colors) and `QuietReporter` |
+| `formats.ts`  | `JsonFormatter` and `MinimalFormatter`                  |
+| `log_sink.ts` | `FileLogSink` for NDJSON audit logs                     |
+| `spinner.ts`  | Terminal spinner                                        |
+| `stderr.ts`   | Stderr writer for `PrettyReporter`                      |
+
+### `src/dashboard/`
+
+Web dashboard.
+
+| File            | Purpose                                           |
+| --------------- | ------------------------------------------------- |
+| `server.ts`     | `DashboardServer` — HTTP + WebSocket, run history |
+| `client.ts`     | `DashboardClient` — CLI-side WebSocket producer   |
+| `dev-server.ts` | Mock event server for UI development              |
+| `assets.ts`     | Embedded dashboard HTML (generated)               |
+| `ui/`           | React SPA (Vite + vite-plugin-singlefile)         |
+
+### `src/cli/` and `src/lib/`
+
+CLI and utilities.
+
+| File                     | Purpose                                                              |
+| ------------------------ | -------------------------------------------------------------------- |
+| `cli.ts`                 | CLI entry point (`main()` + error handling)                          |
+| `cli/index.ts`           | Command assembly and top-level CLI wiring                            |
+| `cli/parsers.ts`         | Enum parsers, validators, and collectors for CLI flags               |
+| `cli/types.ts`           | Shared CLI option types                                              |
+| `cli/commands/`          | Command implementations (init, inventory, dashboard, schema, shared) |
+| `cli/commands/shared.ts` | Common recipe execution pipeline                                     |
+| `cli/runtime.ts`         | Exit code and error formatting behavior                              |
+| `lib/config.ts`          | Config file loading and validation                                   |
+| `lib/errors.ts`          | User-facing error rendering utilities                                |
+
+## Key design decisions
+
+### No state tracking
+
+Every run queries actual server state via SSH. No state files, lock files, or drift databases. This simplifies the mental model — there's nothing to get out of sync. The trade-off is SSH round-trips for every check, mitigated by the optional TTL-based cache.
+
+### System SSH over native libraries
+
+Ignition shells out to the system `ssh` and `scp` binaries instead of using a native SSH library. This avoids native dependencies, leverages the user's existing SSH config and agent, and requires no additional setup. The trade-off is subprocess overhead per command, mitigated by SSH multiplexing (`ControlMaster`).
+
+### TypeScript recipes via dynamic import
+
+Recipes are full TypeScript files loaded with `import()`. This gives recipes the full power of the language — loops, conditionals, helper functions, npm packages — with type safety and IDE support. The trade-off is no sandboxing (recipes have full system access).
+
+### Capability-driven transport
+
+The `Transport` interface defines four capabilities (`exec`, `transfer`, `fetch`, `ping`). Resources declare which capabilities they need. This allows future alternative transports (Docker exec, local exec) without rewriting resources.
+
+### EventBus architecture
+
+All observability flows through a single event pipeline. Reporters, the dashboard, and log sinks are all event consumers. This decouples output concerns from execution logic.
+
+## Extension points
+
+| Extension point | Interface            | Description                                          |
+| --------------- | -------------------- | ---------------------------------------------------- |
+| Transport       | `Transport`          | Add new connection types (Docker, local, native SSH) |
+| Resources       | `ResourceDefinition` | Add custom resources                                 |
+| Registry        | `ResourceRegistry`   | Manage resource collections                          |
+| Event consumers | `EventBus.on()`      | Custom monitoring, alerting, logging                 |
+| Output formats  | `Reporter`           | Custom output rendering                              |

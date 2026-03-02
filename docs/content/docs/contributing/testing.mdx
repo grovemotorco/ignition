@@ -1,0 +1,172 @@
+---
+title: Testing
+description: Test structure, running tests, writing tests for new resources.
+---
+
+## Test structure
+
+Tests live in `tests/` and mirror the `src/` layout:
+
+```
+tests/
+├── helpers/                         # Test utilities
+├── fixtures/
+│   └── mock_ssh.ts                  # createMockSSH() factory for unit tests
+├── core/                            # Resource executor, context, runner, cache, facts, registry
+├── resources/                       # Per-resource unit tests + conformance suite
+├── cli/                             # CLI parsing, command dispatch
+├── output/                          # Reporter, formats, events, spinner, log sink
+├── inventory/                       # Inventory loader
+├── recipe/                          # Recipe loader
+├── dashboard/                       # Server, client, UI state
+├── lib/                             # Config, colors, formatters
+├── integration/
+│   ├── sandbox_fixture.ts           # Shared withSandbox() helper
+│   └── ssh_test.ts                  # Real SSH transport tests
+└── e2e/
+    └── recipe_test.ts               # Full recipe execution tests
+```
+
+## Running tests
+
+```bash
+# All tests
+bun run test
+
+# Single file
+bun test tests/core/resource_test.ts
+
+# Pattern match
+bun test tests/resources/
+
+# With timeout
+bun test --timeout 60000 tests/
+```
+
+## Test categories
+
+### Unit tests
+
+Test individual modules in isolation using `createMockSSH()`:
+
+```bash
+bun test tests/core/
+bun test tests/resources/
+bun test tests/output/
+```
+
+### Dashboard socket tests
+
+Require a real WebSocket server. Skipped by default:
+
+```bash
+IGNITION_RUN_DASHBOARD_TESTS=1 bun test tests/dashboard/
+```
+
+### Sandbox integration tests
+
+Require a Deno Deploy token for ephemeral VMs. Skipped by default:
+
+```bash
+IGNITION_RUN_SANDBOX_TESTS=1 DENO_DEPLOY_TOKEN=... bun test tests/integration/ tests/e2e/
+```
+
+## Mock transport
+
+`tests/fixtures/mock_ssh.ts` provides a `createMockSSH()` factory that returns a `Transport` stub for unit testing:
+
+```typescript
+import { createMockSSH } from "../fixtures/mock_ssh.ts"
+
+const { connection, calls } = createMockSSH({
+  exec: async (command) => ({
+    exitCode: 0,
+    stdout: "install ok installed",
+    stderr: "",
+  }),
+})
+
+// Use `connection` as a Transport in tests
+// Assert on `calls.exec`, `calls.transfer`, etc.
+```
+
+Features:
+
+- Override handlers per method (`exec`, `transfer`, `fetch`, `ping`, `close`)
+- Simulate failures (non-zero exit codes, timeouts)
+- Track all calls via the returned `calls` object for assertions
+- Supports all transport capabilities by default (configurable via `capabilities` option)
+
+## Writing tests for a new resource
+
+1. Create `tests/resources/my_resource_test.ts`
+2. Set up a mock transport with `createMockSSH()` and a custom `exec` handler
+3. Test the check phase:
+   - Already in desired state → `inDesiredState: true`
+   - Not in desired state → `inDesiredState: false`
+4. Test the apply phase:
+   - Verify the correct commands are executed (via `calls.exec`)
+   - Verify the output
+5. Test error cases:
+   - Command failures
+   - Invalid input
+
+```typescript
+import { describe, expect, test } from "bun:test"
+import { createMockSSH, createMockHost, silentReporter } from "../fixtures/mock_ssh.ts"
+import { ExecutionContextImpl } from "../../src/core/context.ts"
+import { myResourceDefinition } from "../../src/resources/my_resource.ts"
+
+describe("my_resource", () => {
+  function makeCtx(
+    execHandler: (command: string) => Promise<{ exitCode: number; stdout: string; stderr: string }>,
+  ) {
+    const { connection, calls } = createMockSSH({ exec: execHandler })
+    const ctx = new ExecutionContextImpl({
+      connection,
+      mode: "apply",
+      errorMode: "fail-fast",
+      verbose: false,
+      host: createMockHost(),
+      reporter: silentReporter(),
+    })
+    return { ctx, calls }
+  }
+
+  test("check: in desired state", async () => {
+    const { ctx } = makeCtx(async (command) => {
+      if (command.includes("test -f")) {
+        return { exitCode: 0, stdout: "EXISTS\n", stderr: "" }
+      }
+      return { exitCode: 0, stdout: "", stderr: "" }
+    })
+
+    const result = await myResourceDefinition.check(ctx, { path: "/etc/my.conf" })
+    expect(result.inDesiredState).toBe(true)
+  })
+
+  test("apply: creates resource", async () => {
+    const { ctx, calls } = makeCtx(async () => ({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    }))
+
+    await myResourceDefinition.apply(ctx, {
+      path: "/etc/my.conf",
+      content: "content",
+    })
+    expect(calls.exec.length).toBeGreaterThan(0)
+  })
+})
+```
+
+## Quality gate
+
+Before committing, run the full gate:
+
+```bash
+bun run verify
+```
+
+This runs: type-check → lint → format check → tests. All must pass.

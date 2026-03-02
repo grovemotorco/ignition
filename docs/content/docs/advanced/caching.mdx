@@ -1,0 +1,88 @@
+---
+title: Caching
+description: Speed up repeated checks with the check result cache.
+---
+
+Ignition can cache the results of `check()` calls to skip redundant SSH round-trips on repeated runs.
+
+## Purpose
+
+Every resource `check()` call runs one or more SSH commands to inspect remote state. For large inventories or frequent checks, this adds up. The cache stores check results locally so subsequent runs can skip the SSH calls for recently-verified resources.
+
+## Enabling caching
+
+```bash
+ignition check deploy.ts @web -i hosts.ts --cache
+```
+
+| Flag               | Default           | Description                 |
+| ------------------ | ----------------- | --------------------------- |
+| `--cache`          | off               | Enable check result caching |
+| `--cache-ttl <ms>` | `600000` (10 min) | Cache entry lifetime        |
+| `--cache-clear`    | off               | Clear cache before running  |
+
+## How it works
+
+1. Before running `check()`, Ignition looks up the cache using a key derived from: host, resource type, resource name, and input.
+2. If a cache hit is found and the entry is within TTL, the cached result is used without SSH.
+3. If no hit or expired, `check()` runs normally and the result is cached.
+4. Cache hits are reported in the output with timing.
+
+## Cache key structure
+
+Each cache entry is keyed by:
+
+- Hostname, port, user
+- Resource type and name
+- Serialized input (deterministic JSON)
+- Tool version (auto-invalidates on upgrade)
+
+This means the cache only hits when the exact same resource with the exact same input is checked against the same host.
+
+## Cache backends
+
+### Memory cache
+
+In-memory cache that lives for the duration of the process. Useful for library usage:
+
+```typescript
+import { MemoryCheckResultCache } from "@grovemotorco/ignition"
+
+const cache = new MemoryCheckResultCache({ ttlMs: 300_000 })
+```
+
+### File cache
+
+Persists to disk as JSON at `.ignition/check-cache.json`. This is what the CLI uses with `--cache`:
+
+```typescript
+import { FileCheckResultCache } from "@grovemotorco/ignition"
+
+const cache = new FileCheckResultCache({
+  ttlMs: 600_000,
+  path: ".ignition/check-cache.json",
+})
+```
+
+## Limitations
+
+- **Check mode only** — caching only applies during `check()`. Apply mode always runs a fresh check.
+- **Non-authoritative** — the cache assumes remote state hasn't changed since the last check. If someone modifies the server between runs, the cache may be stale.
+- **TTL-based expiry** — entries expire after the configured TTL (default 10 minutes). There's no event-based invalidation.
+- **Local to the machine** — the cache file is not shared across machines.
+
+## When to use
+
+- **Repeated checks** — running `ignition check` multiple times while iterating on a recipe
+- **Large inventories** — checking 50+ hosts where most resources are already in desired state
+- **CI pipelines** — speed up repeated `ignition check` runs in the same pipeline
+
+## Clearing the cache
+
+```bash
+# Clear before running
+ignition check deploy.ts @web --cache --cache-clear
+
+# Or delete the file directly
+rm -rf .ignition/check-cache.json
+```

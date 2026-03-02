@@ -1,0 +1,254 @@
+---
+title: TypeScript Types
+description: Key types and interfaces exported by Ignition.
+---
+
+All types are importable from `@grovemotorco/ignition`.
+
+```typescript
+import type {
+  ExecutionContext,
+  ResourceResult,
+  Inventory,
+  RunSummary,
+} from "@grovemotorco/ignition"
+```
+
+## Core types
+
+### `ExecutionContext`
+
+The per-host execution context passed to recipes. Carries the connection, mode, variables, and accumulated results.
+
+| Field               | Type                                   | Description                                   |
+| ------------------- | -------------------------------------- | --------------------------------------------- |
+| `connection`        | `Transport`                            | SSH transport for this host                   |
+| `mode`              | `RunMode`                              | `"apply"` or `"check"`                        |
+| `errorMode`         | `ErrorMode`                            | `"fail-fast"`, `"fail-at-end"`, or `"ignore"` |
+| `verbose`           | `boolean`                              | Whether to show detailed output               |
+| `host`              | `HostContext`                          | Host connection details and name              |
+| `results`           | `ResourceResult[]`                     | Accumulated resource results                  |
+| `vars`              | `Record<string, unknown>`              | Merged variables (proxy with scope stack)     |
+| `reporter`          | `Reporter`                             | Output reporter                               |
+| `hasFailed`         | `boolean`                              | Whether any resource has failed               |
+| `facts`             | `HostFacts \| undefined`               | Detected platform facts                       |
+| `signal`            | `AbortSignal \| undefined`             | Cancellation signal                           |
+| `cache`             | `CheckResultCache \| undefined`        | Check result cache                            |
+| `resourcePolicy`    | `Partial<ResourcePolicy> \| undefined` | Timeout and retry configuration               |
+| `eventBus`          | `EventBus \| undefined`                | Event pipeline                                |
+| `resourceTags`      | `readonly string[] \| undefined`       | Active tag filter                             |
+| `hostCorrelationId` | `CorrelationId \| undefined`           | Host correlation ID for event telemetry       |
+| `redactionPolicy`   | `RedactionPolicy \| undefined`         | Redaction policy for sensitive data           |
+
+Methods:
+
+| Method     | Signature                                                                     | Description                             |
+| ---------- | ----------------------------------------------------------------------------- | --------------------------------------- |
+| `setVar`   | `(key: string, value: unknown) => void`                                       | Set a variable in the current scope     |
+| `withVars` | `<T>(overrides: Record<string, unknown>, fn: () => Promise<T>) => Promise<T>` | Execute with a temporary variable scope |
+
+### `RunMode`
+
+```typescript
+type RunMode = "apply" | "check"
+```
+
+### `ErrorMode`
+
+```typescript
+type ErrorMode = "fail-fast" | "fail-at-end" | "ignore"
+```
+
+## Resource types
+
+### `ResourceResult<TOutput>`
+
+The result of a resource execution.
+
+| Field        | Type                                   | Description                              |
+| ------------ | -------------------------------------- | ---------------------------------------- |
+| `type`       | `string`                               | Resource type (e.g. `"apt"`, `"file"`)   |
+| `name`       | `string`                               | Display name from `formatName()`         |
+| `status`     | `ResourceStatus`                       | `"ok"`, `"changed"`, or `"failed"`       |
+| `current`    | `Record<string, unknown> \| undefined` | Observed state before execution          |
+| `desired`    | `Record<string, unknown> \| undefined` | Target state from input                  |
+| `output`     | `TOutput \| undefined`                 | Resource-specific output data            |
+| `error`      | `Error \| undefined`                   | Error object if failed                   |
+| `durationMs` | `number`                               | Execution time in milliseconds           |
+| `attempts`   | `AttemptRecord[] \| undefined`         | Retry attempt history                    |
+| `cacheHit`   | `boolean \| undefined`                 | Whether the check result came from cache |
+| `cacheAgeMs` | `number \| undefined`                  | Age of cached result                     |
+| `meta`       | `ResourceCallMeta \| undefined`        | Call metadata (tags, id)                 |
+
+### `ResourceStatus`
+
+```typescript
+type ResourceStatus = "ok" | "changed" | "failed"
+```
+
+### `CheckResult<TOutput>`
+
+Returned by a resource's `check()` method.
+
+| Field            | Type                      | Description                        |
+| ---------------- | ------------------------- | ---------------------------------- |
+| `inDesiredState` | `boolean`                 | Whether the resource needs changes |
+| `current`        | `Record<string, unknown>` | Observed state                     |
+| `desired`        | `Record<string, unknown>` | Target state                       |
+| `output`         | `TOutput \| undefined`    | Set when already in desired state  |
+
+### `ResourceDefinition<TInput, TOutput>`
+
+The contract for implementing a resource.
+
+| Field        | Type                                            | Description                        |
+| ------------ | ----------------------------------------------- | ---------------------------------- |
+| `type`       | `string`                                        | Unique lowercase identifier        |
+| `schema`     | `ResourceSchema \| undefined`                   | Machine-readable schema            |
+| `formatName` | `(input: TInput) => string`                     | Human-readable name (pure, no I/O) |
+| `check`      | `(ctx, input) => Promise<CheckResult<TOutput>>` | Read-only state check              |
+| `apply`      | `(ctx, input) => Promise<TOutput>`              | Mutating convergence               |
+
+### `ResourceCallMeta`
+
+Optional metadata for resource calls.
+
+| Field            | Type                             | Description            |
+| ---------------- | -------------------------------- | ---------------------- |
+| `tags`           | `readonly string[] \| undefined` | Tags for filtering     |
+| `id`             | `string \| undefined`            | Unique call identifier |
+| `notify`         | `readonly string[] \| undefined` | Notification labels    |
+| `sensitivePaths` | `readonly string[] \| undefined` | Fields to redact       |
+
+### `ResourcePolicy`
+
+Timeout and retry configuration.
+
+| Field          | Type                   | Default | Description                     |
+| -------------- | ---------------------- | ------- | ------------------------------- |
+| `timeoutMs`    | `number`               | `30000` | Timeout per phase (check/apply) |
+| `retries`      | `number`               | `2`     | Retry attempts                  |
+| `retryDelayMs` | `number`               | `1000`  | Initial backoff                 |
+| `postCheck`    | `boolean \| undefined` | `false` | Verify convergence after apply  |
+
+## Inventory types
+
+### `Inventory`
+
+| Field      | Type                                     | Description         |
+| ---------- | ---------------------------------------- | ------------------- |
+| `defaults` | `InventoryDefaults \| undefined`         | Connection defaults |
+| `vars`     | `Record<string, unknown> \| undefined`   | Global variables    |
+| `groups`   | `Record<string, HostGroup> \| undefined` | Named host groups   |
+| `hosts`    | `Record<string, Host> \| undefined`      | Standalone hosts    |
+
+### `Host`
+
+| Field        | Type                                   | Description             |
+| ------------ | -------------------------------------- | ----------------------- |
+| `hostname`   | `string`                               | SSH hostname or IP      |
+| `user`       | `string \| undefined`                  | SSH user                |
+| `port`       | `number \| undefined`                  | SSH port                |
+| `privateKey` | `string \| undefined`                  | Path to private key     |
+| `vars`       | `Record<string, unknown> \| undefined` | Host-specific variables |
+
+### `HostGroup`
+
+| Field   | Type                                   | Description           |
+| ------- | -------------------------------------- | --------------------- |
+| `hosts` | `Record<string, Host>`                 | Hosts in this group   |
+| `vars`  | `Record<string, unknown> \| undefined` | Group-level variables |
+
+### `ResolvedHost`
+
+A fully resolved host ready for connection.
+
+| Field        | Type                      | Description                       |
+| ------------ | ------------------------- | --------------------------------- |
+| `name`       | `string`                  | Logical name                      |
+| `hostname`   | `string`                  | SSH hostname                      |
+| `user`       | `string`                  | SSH user (resolved from defaults) |
+| `port`       | `number`                  | SSH port (resolved from defaults) |
+| `privateKey` | `string \| undefined`     | Private key path                  |
+| `vars`       | `Record<string, unknown>` | Merged variables                  |
+
+## Recipe types
+
+### `RecipeFunction`
+
+```typescript
+type RecipeFunction = (ctx: ExecutionContext) => Promise<void>
+```
+
+### `RecipeMeta`
+
+| Field         | Type                             | Description                |
+| ------------- | -------------------------------- | -------------------------- |
+| `description` | `string \| undefined`            | Human-readable description |
+| `tags`        | `readonly string[] \| undefined` | Tags for filtering         |
+
+## Run summary types
+
+### `RunSummary`
+
+| Field         | Type                                              | Description                   |
+| ------------- | ------------------------------------------------- | ----------------------------- |
+| `hosts`       | `HostRunSummary[]`                                | Per-host results              |
+| `hasFailures` | `boolean`                                         | Whether any host had failures |
+| `durationMs`  | `number`                                          | Total run duration            |
+| `mode`        | `RunMode`                                         | Run mode                      |
+| `timestamp`   | `string`                                          | ISO 8601 timestamp            |
+| `recipe`      | `{ path: string; checksum: string } \| undefined` | Recipe file info              |
+
+### `HostRunSummary`
+
+| Field        | Type                   | Description                    |
+| ------------ | ---------------------- | ------------------------------ |
+| `host`       | `HostContext`          | Host details                   |
+| `results`    | `ResourceResult[]`     | Resource results               |
+| `ok`         | `number`               | Count of ok resources          |
+| `changed`    | `number`               | Count of changed resources     |
+| `failed`     | `number`               | Count of failed resources      |
+| `durationMs` | `number`               | Host execution time            |
+| `cancelled`  | `boolean \| undefined` | Whether the host was cancelled |
+
+## Transport types
+
+### `Transport`
+
+SSH transport interface.
+
+| Method         | Signature                                           | Description              |
+| -------------- | --------------------------------------------------- | ------------------------ |
+| `config`       | `SSHConnectionConfig`                               | Connection configuration |
+| `capabilities` | `() => ReadonlySet<TransportCapability>`            | Supported capabilities   |
+| `exec`         | `(command, opts?) => Promise<ExecResult>`           | Run a command            |
+| `transfer`     | `(localPath, remotePath, signal?) => Promise<void>` | Upload a file            |
+| `fetch`        | `(remotePath, localPath, signal?) => Promise<void>` | Download a file          |
+| `ping`         | `() => Promise<boolean>`                            | Test connectivity        |
+| `close`        | `() => Promise<void>`                               | Close the connection     |
+
+### `TransportCapability`
+
+```typescript
+type TransportCapability = "exec" | "transfer" | "fetch" | "ping"
+```
+
+### `HostFacts`
+
+Platform detection results.
+
+| Field           | Type             | Description                                      |
+| --------------- | ---------------- | ------------------------------------------------ |
+| `distro`        | `DistroFamily`   | `"debian"`, `"rhel"`, `"alpine"`, or `"unknown"` |
+| `distroId`      | `string`         | Raw distro ID (e.g. `"ubuntu"`)                  |
+| `distroVersion` | `string`         | Version string (e.g. `"22.04"`)                  |
+| `pkgManager`    | `PackageManager` | `"apt"`, `"dnf"`, `"yum"`, `"apk"`, or `null`    |
+| `initSystem`    | `InitSystem`     | `"systemd"`, `"openrc"`, or `null`               |
+| `arch`          | `string`         | Architecture (e.g. `"x86_64"`, `"aarch64"`)      |
+
+### `TemplateContext`
+
+```typescript
+type TemplateContext = Record<string, unknown>
+```

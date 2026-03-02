@@ -1,0 +1,98 @@
+---
+title: Development Setup
+description: Set up your development environment and learn the dev workflow.
+---
+
+## Setup
+
+```bash
+git clone https://github.com/grovemotorco/ignition.git
+cd ignition
+bun install
+```
+
+## Development commands
+
+| Command                                    | Description                                            |
+| ------------------------------------------ | ------------------------------------------------------ |
+| `bun run src/cli.ts run <recipe> <target>` | Run CLI from source                                    |
+| `bun run verify`                           | Full quality gate: typecheck → lint → fmt:check → test |
+| `bun run typecheck`                        | Type-check (`tsgo --noEmit`)                           |
+| `bun run lint`                             | Lint with oxlint                                       |
+| `bun run fmt`                              | Format with oxfmt                                      |
+| `bun run fmt:check`                        | Format check (CI)                                      |
+| `bun run test`                             | Run unit tests                                         |
+| `bun test tests/core/resource_test.ts`     | Run a single test file                                 |
+| `bun run build:executable`                 | Build standalone binary                                |
+
+## Quality gate
+
+**`bun run verify` must pass before every commit.** It runs:
+
+1. `bun run typecheck` — type-check
+2. `oxlint --type-aware --type-check` — lint
+3. `oxfmt --check` — format check
+4. `bun test` — test suite
+
+## Commit conventions
+
+Use conventional commits:
+
+```
+<type>(<scope>): <description>
+```
+
+Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
+
+Scopes: `core`, `cli`, `ssh`, `resources`, `output`, `dashboard`, `inventory`, `recipe`
+
+Examples:
+
+```
+feat(resources): add user resource
+fix(ssh): handle connection timeout gracefully
+chore(cli): update help text
+```
+
+## Dashboard development
+
+Start two processes:
+
+**Terminal 1** — mock event server on `:9090`:
+
+```bash
+bun run src/dashboard/dev-server.ts
+```
+
+This pushes synthetic run events with realistic timing.
+
+**Terminal 2** — Vite dev server on `:5173`:
+
+```bash
+cd src/dashboard/ui && bunx vite
+```
+
+Open `http://localhost:5173` — the React UI has HMR and proxies `/ws` and `/api` to the mock backend.
+
+### Building the dashboard
+
+The dashboard UI is a React SPA embedded as a single HTML string:
+
+```bash
+bun run dashboard:build
+```
+
+This compiles the React app, produces `dist/index.html`, and auto-embeds it into `src/dashboard/assets.ts`.
+
+## Building an executable
+
+```bash
+bun run build:executable
+```
+
+Produces `dist/ignition` — a single-file binary.
+
+## Code style
+
+- Tabs, 120 character line width, no semicolons
+- Enforced by oxfmt (`bun run fmt`) and oxlint (`bun run lint`)

@@ -1,0 +1,5 @@
+{
+  "title": "Advanced",
+  "icon": "Settings",
+  "pages": ["custom-resources", "parallel-execution", "caching", "host-facts", "events"]
+}

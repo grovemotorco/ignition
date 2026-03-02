@@ -1,0 +1,180 @@
+---
+title: CLI Reference
+description: Complete reference for all Ignition CLI commands and options.
+---
+
+```
+ignition <command> [options]
+```
+
+## Commands
+
+### `run`
+
+Apply a recipe to target hosts.
+
+```bash
+ignition run <recipe> <target...> [options]
+```
+
+| Argument | Description                                                  |
+| -------- | ------------------------------------------------------------ |
+| `recipe` | Path to recipe `.ts` file                                    |
+| `target` | One or more targets (host names, `@group`, `user@host:port`) |
+
+### `check`
+
+Dry-run a recipe. Runs `check()` for every resource without calling `apply()`. Shows what would change.
+
+```bash
+ignition check <recipe> <target...> [options]
+```
+
+Same arguments and options as `run`.
+
+### `inventory`
+
+List hosts from an inventory file.
+
+```bash
+ignition inventory [file] [options]
+```
+
+| Argument | Description                  |
+| -------- | ---------------------------- |
+| `file`   | Path to inventory `.ts` file |
+
+Options:
+
+| Flag                     | Default  | Description                    |
+| ------------------------ | -------- | ------------------------------ |
+| `-i, --inventory <file>` | —        | Path to inventory file         |
+| `-v, --verbose`          | `false`  | Enable verbose output          |
+| `-f, --format <fmt>`     | `pretty` | `pretty`, `json`, or `minimal` |
+
+### `init`
+
+Scaffold a new Ignition project in the current directory.
+
+```bash
+ignition init
+```
+
+Creates `recipe.ts`, `inventory.ts`, `ignition.config.ts`, and `package.json` (if missing).
+
+### `dashboard`
+
+Start a persistent web dashboard server.
+
+```bash
+ignition dashboard [host:port]
+```
+
+| Argument    | Default          | Description  |
+| ----------- | ---------------- | ------------ |
+| `host:port` | `127.0.0.1:9090` | Bind address |
+
+Options:
+
+| Flag                | Default | Description                         |
+| ------------------- | ------- | ----------------------------------- |
+| `--var history=<n>` | `10`    | Number of historical runs to retain |
+| `-v, --verbose`     | `false` | Enable verbose output               |
+
+### `schema`
+
+Display schema and resource information. Useful for tooling and integrations.
+
+```bash
+ignition schema <subcommand> [options]
+```
+
+Subcommands:
+
+| Subcommand        | Description                  |
+| ----------------- | ---------------------------- |
+| `all`             | Full schema (all sections)   |
+| `resources`       | List all resource schemas    |
+| `resource <name>` | Schema for a single resource |
+| `recipe`          | Recipe function schema       |
+| `inventory`       | Inventory file schema        |
+| `cli`             | CLI options schema           |
+
+Options:
+
+| Flag                 | Default | Description                  |
+| -------------------- | ------- | ---------------------------- |
+| `-f, --format <fmt>` | `json`  | `json`, `pretty`, or `agent` |
+
+## Options for `run` and `check`
+
+### Connection options
+
+| Flag                         | Default      | Description                         |
+| ---------------------------- | ------------ | ----------------------------------- |
+| `-i, --inventory <file>`     | —            | Path to inventory file              |
+| `--host-key-policy <policy>` | `accept-new` | `strict`, `accept-new`, or `off`    |
+| `--identity <path>`          | —            | Path to SSH private key             |
+| `--no-multiplex`             | —            | Disable SSH connection multiplexing |
+
+### Execution options
+
+| Flag                      | Default     | Description                                     |
+| ------------------------- | ----------- | ----------------------------------------------- |
+| `--error-mode <mode>`     | `fail-fast` | `fail-fast`, `fail-at-end`, or `ignore`         |
+| `--tags <tags>`           | —           | Filter recipes by `meta.tags` (comma-separated) |
+| `--var <key=value>`       | —           | Set a variable (repeatable)                     |
+| `--confirm`               | —           | Prompt before applying                          |
+| `--parallelism <n>`       | `5`         | Max concurrent hosts                            |
+| `--host-timeout <ms>`     | `0`         | Per-host timeout (0 = unlimited)                |
+| `--resource-timeout <ms>` | `30000`     | Per-resource timeout                            |
+| `--retries <n>`           | `2`         | Retry attempts for transient failures           |
+| `--retry-delay <ms>`      | `1000`      | Initial retry backoff                           |
+
+### Output options
+
+| Flag                 | Default  | Description                           |
+| -------------------- | -------- | ------------------------------------- |
+| `-v, --verbose`      | —        | Show SSH commands and detailed output |
+| `-f, --format <fmt>` | `pretty` | `pretty`, `json`, or `minimal`        |
+
+### Cache options
+
+| Flag               | Default  | Description                     |
+| ------------------ | -------- | ------------------------------- |
+| `--cache`          | —        | Cache check results across runs |
+| `--cache-ttl <ms>` | `600000` | Cache entry lifetime            |
+| `--cache-clear`    | —        | Clear cache before running      |
+
+### Dashboard options
+
+| Flag                      | Default          | Description         |
+| ------------------------- | ---------------- | ------------------- |
+| `--dashboard [host:port]` | `127.0.0.1:9090` | Start web dashboard |
+
+### Logging options
+
+| Flag               | Default | Description                     |
+| ------------------ | ------- | ------------------------------- |
+| `--log-dir <path>` | —       | Directory for NDJSON audit logs |
+
+## Global options
+
+| Flag            | Description            |
+| --------------- | ---------------------- |
+| `-V, --version` | Print version and exit |
+| `--help`        | Show help              |
+
+## Exit codes
+
+| Code | Meaning                                |
+| ---- | -------------------------------------- |
+| `0`  | Success — all resources ok or changed  |
+| `1`  | Failure — one or more resources failed |
+
+## Environment variables
+
+| Variable            | Description                           |
+| ------------------- | ------------------------------------- |
+| `DENO_DEPLOY_TOKEN` | Token for sandbox microVMs            |
+| `SSH_AUTH_SOCK`     | SSH agent socket (used by system SSH) |

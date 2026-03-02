@@ -1,0 +1,72 @@
+---
+title: Project Setup
+description: Scaffold a new Ignition project and configure it.
+---
+
+## Scaffolding with `ignition init`
+
+Run `init` to create a starter project:
+
+```bash
+ignition init
+```
+
+This creates:
+
+| File                 | Purpose                                                      |
+| -------------------- | ------------------------------------------------------------ |
+| `recipe.ts`          | A starter recipe that runs `uname -a`                        |
+| `inventory.ts`       | An example inventory with one host                           |
+| `ignition.config.ts` | Project configuration                                        |
+| `package.json`       | Created if missing, adds `@grovemotorco/ignition` dependency |
+
+## Project layout
+
+A typical Ignition project looks like:
+
+```
+my-infra/
+  ignition.config.ts    # Project configuration
+  inventory.ts          # Host inventory
+  deploy.ts             # Main recipe
+  security.ts           # Another recipe
+  templates/
+    nginx.conf.ts       # Template functions
+    systemd-unit.ts
+  package.json
+```
+
+Recipes, inventories, and templates are all plain TypeScript files. Organize them however suits your project.
+
+## Configuration file
+
+`ignition.config.ts` sets project-level defaults so you don't have to pass them on every command:
+
+```typescript
+import type { IgnitionConfig } from "@grovemotorco/ignition"
+
+const config: IgnitionConfig = {
+  inventory: "inventory.ts",
+  verbose: true,
+  parallelism: 10,
+  errorMode: "fail-at-end",
+}
+
+export default config
+```
+
+With this config, you can run:
+
+```bash
+# Before: ignition run deploy.ts @web -i inventory.ts --verbose --error-mode fail-at-end --parallelism 10
+# After:
+ignition run deploy.ts @web
+```
+
+CLI flags always override config file values. See [Configuration](/docs/guides/configuration) for all available options.
+
+## Next steps
+
+- [Writing Recipes](/docs/guides/recipes) — learn recipe patterns and composition
+- [Inventory & Targets](/docs/guides/inventory) — define hosts and groups
+- [Configuration](/docs/guides/configuration) — full config file reference

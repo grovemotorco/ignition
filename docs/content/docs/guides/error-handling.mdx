@@ -1,0 +1,97 @@
+---
+title: Error Handling
+description: Error modes, retries, timeouts, and the error type hierarchy.
+---
+
+## Error modes
+
+Ignition has three error modes, controlled via `--error-mode`:
+
+| Mode          | Behavior                                       | Use case                                      |
+| ------------- | ---------------------------------------------- | --------------------------------------------- |
+| `fail-fast`   | Stop immediately on first failure              | Default. CI pipelines, critical deploys.      |
+| `fail-at-end` | Run everything, report all failures at the end | Auditing, understanding full scope of issues. |
+| `ignore`      | Log failures and keep going                    | Best-effort provisioning, non-critical tasks. |
+
+```bash
+ignition run deploy.ts @web --error-mode fail-fast      # stop on first error (default)
+ignition run deploy.ts @web --error-mode fail-at-end    # run everything, then report
+ignition run deploy.ts @web --error-mode ignore         # log and continue
+```
+
+In `fail-fast` mode with multiple hosts, a failure on one host cancels all sibling hosts.
+
+## Error types
+
+All Ignition errors extend `IgnitionError` and carry a discriminant `tag` field:
+
+| Error                | Tag                  | Description                                   |
+| -------------------- | -------------------- | --------------------------------------------- |
+| `SSHConnectionError` | `SSHConnectionError` | Failed to establish SSH connection            |
+| `SSHCommandError`    | `SSHCommandError`    | Command exited with non-zero status           |
+| `TransferError`      | `TransferError`      | SCP file transfer failed                      |
+| `ResourceError`      | `ResourceError`      | Resource check or apply failed                |
+| `RecipeLoadError`    | `RecipeLoadError`    | Failed to import recipe file                  |
+| `InventoryError`     | `InventoryError`     | Failed to load or resolve inventory           |
+| `CapabilityError`    | `CapabilityError`    | Transport doesn't support required capability |
+
+`SSHCommandError` includes the `exitCode`, `stdout`, and `stderr` from the failed command.
+
+## Retry behavior
+
+Ignition retries **transient** failures automatically. Only two error types are retryable:
+
+| Error                | Retryable | Rationale                                  |
+| -------------------- | --------- | ------------------------------------------ |
+| `SSHConnectionError` | Yes       | Network glitch, server briefly unreachable |
+| `TransferError`      | Yes       | SCP failure due to transient network issue |
+| All others           | No        | Likely a real problem, not transient       |
+
+### Retry configuration
+
+| Flag            | Default | Description                        |
+| --------------- | ------- | ---------------------------------- |
+| `--retries`     | `2`     | Number of retry attempts per phase |
+| `--retry-delay` | `1000`  | Initial backoff in milliseconds    |
+
+Retries use **exponential backoff with jitter**:
+
+```
+delay = baseDelay * 2^(attempt - 1) + random(0..baseDelay/2)
+```
+
+For the default of `1000ms` base delay:
+
+| Attempt   | Base delay | With jitter |
+| --------- | ---------- | ----------- |
+| 1st retry | 1000ms     | 1000–1500ms |
+| 2nd retry | 2000ms     | 2000–2500ms |
+
+## Timeouts
+
+### Resource timeout
+
+Each resource phase (check, apply) has a timeout:
+
+```bash
+ignition run deploy.ts @web --resource-timeout 60000   # 60 seconds
+```
+
+Default: `30000ms` (30 seconds). When a resource times out, it's treated as a failure.
+
+### Host timeout
+
+Set a maximum time for an entire host's recipe execution:
+
+```bash
+ignition run deploy.ts @web --host-timeout 300000   # 5 minutes
+```
+
+Default: `0` (unlimited). When a host times out, all its in-progress resources are cancelled.
+
+## Exit codes
+
+| Code | Meaning                                 |
+| ---- | --------------------------------------- |
+| `0`  | All resources succeeded (ok or changed) |
+| `1`  | One or more resources failed            |

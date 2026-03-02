@@ -1,0 +1,90 @@
+---
+title: apt
+description: Manage system packages on Debian/Ubuntu hosts.
+---
+
+The `apt` resource manages packages using `apt-get`. It is declarative and idempotent.
+
+## Input
+
+| Field    | Type                                | Default     | Required | Description                         |
+| -------- | ----------------------------------- | ----------- | -------- | ----------------------------------- |
+| `name`   | `string \| string[]`                | —           | Yes      | Package name(s) to manage           |
+| `state`  | `"present" \| "absent" \| "latest"` | `"present"` | No       | Target state                        |
+| `update` | `boolean`                           | `false`     | No       | Run `apt-get update` before install |
+
+## Output
+
+| Field      | Type                     | Description                              |
+| ---------- | ------------------------ | ---------------------------------------- |
+| `packages` | `Record<string, string>` | Map of package name to installed version |
+| `changed`  | `boolean`                | Whether any packages were modified       |
+
+## Behavior
+
+### Check phase
+
+1. Asserts the target host uses apt (via `ctx.facts.pkgManager`). Allows `null`/unknown but fails on an explicit non-apt package manager.
+2. Queries `dpkg-query` for each package's install status and version.
+3. For `state: "present"` — in desired state if all packages are installed.
+4. For `state: "absent"` — in desired state if all packages are not installed.
+5. For `state: "latest"` — queries `apt-cache policy` to compare installed version against candidate version.
+
+### Apply phase
+
+- `present` / `latest`: runs `sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq <packages>`
+- `absent`: runs `sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq <packages>`
+- If `update: true`, runs `sudo apt-get update -qq` first
+
+## Annotations
+
+| Property              | Value                        |
+| --------------------- | ---------------------------- |
+| Nature                | Declarative                  |
+| Idempotent            | Yes                          |
+| Destructive           | Yes (when `state: "absent"`) |
+| Read-only             | No                           |
+| Required capabilities | `exec`                       |
+
+## Examples
+
+### Install a single package
+
+```typescript
+await apt({ name: "nginx", state: "present" })
+```
+
+### Install multiple packages
+
+```typescript
+await apt({ name: ["git", "curl", "htop"], state: "present" })
+```
+
+### Install with update
+
+```typescript
+await apt({ name: "nginx", state: "present", update: true })
+```
+
+This runs `apt-get update` before installing, ensuring the package index is current.
+
+### Remove a package
+
+```typescript
+await apt({ name: "apache2", state: "absent" })
+```
+
+### Ensure latest version
+
+```typescript
+await apt({ name: "nginx", state: "latest" })
+```
+
+Upgrades the package if a newer version is available in the apt cache.
+
+## Gotchas
+
+- The `apt` resource requires `sudo` on the remote host for install/remove operations.
+- When using `name` as an array, all packages are installed/removed in a single `apt-get` call.
+- `state: "latest"` compares against the candidate version from `apt-cache policy`. Run with `update: true` if you need the latest from the repository.
+- Only works on hosts with `apt-get` (Debian, Ubuntu, and derivatives).

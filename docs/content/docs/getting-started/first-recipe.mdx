@@ -1,0 +1,99 @@
+---
+title: Your First Recipe
+description: Write a recipe, dry-run it, and apply it to a remote host.
+---
+
+A recipe is a TypeScript file that describes the desired state of a remote host. Let's write one that installs Nginx and deploys a basic page.
+
+## Write the recipe
+
+Create a file called `setup.ts`:
+
+```typescript
+import type { ExecutionContext } from "@grovemotorco/ignition"
+import { createResources } from "@grovemotorco/ignition"
+
+export default async function (ctx: ExecutionContext) {
+  const { apt, directory, file, service } = createResources(ctx)
+
+  // Install nginx
+  await apt({ name: "nginx", state: "present" })
+
+  // Create the web root
+  await directory({ path: "/var/www/app", owner: "www-data", mode: "755" })
+
+  // Deploy a page
+  await file({
+    path: "/var/www/app/index.html",
+    content: "<h1>Hello from Ignition</h1>",
+  })
+
+  // Start nginx
+  await service({ name: "nginx", state: "started", enabled: true })
+}
+```
+
+Each resource call describes a piece of desired state:
+
+- `apt` ensures the `nginx` package is installed
+- `directory` ensures `/var/www/app` exists with the right ownership
+- `file` ensures the HTML file has the expected content
+- `service` ensures nginx is running and enabled at boot
+
+Resources run in order. Each one checks the remote state first, then applies changes only if needed.
+
+## Dry-run with `check`
+
+Preview what would change without touching the server:
+
+```bash
+ignition check setup.ts admin@your-server.com
+```
+
+The output shows each resource and whether it would need changes:
+
+```
+◇ admin@your-server.com
+  ✓ apt nginx                        ok          0.8s
+  ~ directory /var/www/app           would change 0.2s
+  ~ file /var/www/app/index.html     would change 0.3s
+  ✓ service nginx                    ok          0.2s
+```
+
+- **ok** means the resource is already in the desired state
+- **would change** means `apply` would make changes
+
+## Apply with `run`
+
+Apply the recipe:
+
+```bash
+ignition run setup.ts admin@your-server.com
+```
+
+```
+◇ admin@your-server.com
+  ✓ apt nginx                        ok       0.8s
+  ✓ directory /var/www/app           changed  0.3s
+  ✓ file /var/www/app/index.html     changed  0.4s
+  ✓ service nginx                    ok       0.2s
+```
+
+- **ok** — already in the desired state, nothing changed
+- **changed** — applied successfully
+
+## Re-run for idempotency
+
+Run the same recipe again:
+
+```bash
+ignition run setup.ts admin@your-server.com
+```
+
+Everything reports **ok** — the server is already in the desired state. This is safe to run as many times as you want.
+
+## Next steps
+
+- [Inventory & Targets](/docs/guides/inventory) — target multiple hosts at once
+- [Templates](/docs/guides/templates) — generate config files dynamically
+- [Resources Overview](/docs/guides/resources) — learn about all five built-in resources

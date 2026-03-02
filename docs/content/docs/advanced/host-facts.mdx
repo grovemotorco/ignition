@@ -1,0 +1,121 @@
+---
+title: Host Facts
+description: Platform detection and conditional logic based on remote host properties.
+---
+
+Ignition probes each host at the start of a run to detect platform details. These facts are available in recipes for conditional logic.
+
+## What gets detected
+
+| Field           | Type             | Example     | Description                                |
+| --------------- | ---------------- | ----------- | ------------------------------------------ |
+| `distro`        | `DistroFamily`   | `"debian"`  | Distribution family                        |
+| `distroId`      | `string`         | `"ubuntu"`  | Raw distribution ID from `/etc/os-release` |
+| `distroVersion` | `string`         | `"22.04"`   | Version string                             |
+| `pkgManager`    | `PackageManager` | `"apt"`     | Detected package manager                   |
+| `initSystem`    | `InitSystem`     | `"systemd"` | Detected init system                       |
+| `arch`          | `string`         | `"x86_64"`  | CPU architecture                           |
+
+### DistroFamily
+
+```typescript
+type DistroFamily = "debian" | "rhel" | "alpine" | "unknown"
+```
+
+### PackageManager
+
+```typescript
+type PackageManager = "apt" | "dnf" | "yum" | "apk" | null
+```
+
+### InitSystem
+
+```typescript
+type InitSystem = "systemd" | "openrc" | null
+```
+
+## How probing works
+
+After verifying SSH connectivity, Ignition runs three commands concurrently:
+
+1. `cat /etc/os-release` — parses `ID`, `ID_LIKE`, and `VERSION_ID`
+2. `command -v apt-get 2>/dev/null; command -v dnf 2>/dev/null; command -v yum 2>/dev/null; command -v apk 2>/dev/null; uname -m` — detects package manager and architecture
+3. `command -v systemctl 2>/dev/null; command -v openrc-init 2>/dev/null || true` — detects init system
+
+All three run in parallel for speed. If any command fails, that field falls back to `"unknown"` or `null`. Facts probing never fails the run.
+
+## Accessing facts in recipes
+
+Facts are available via `ctx.facts`:
+
+```typescript
+export default async function (ctx: ExecutionContext) {
+  const { exec, apt } = createResources(ctx)
+
+  if (ctx.facts?.distro === "debian") {
+    await apt({ name: "nginx", state: "present" })
+  }
+
+  if (ctx.facts?.arch === "aarch64") {
+    await exec({ command: "echo 'ARM architecture detected'" })
+  }
+}
+```
+
+## Conditional logic examples
+
+### Platform-specific packages
+
+```typescript
+if (ctx.facts?.pkgManager === "apt") {
+  await apt({ name: "nginx", state: "present" })
+} else {
+  await exec({ command: "dnf install -y nginx", sudo: true })
+}
+```
+
+### Architecture-aware configuration
+
+```typescript
+const arch = ctx.facts?.arch ?? "x86_64"
+const binaryUrl = `https://example.com/app-${arch}`
+
+await exec({ command: `curl -o /usr/local/bin/app ${binaryUrl}` })
+```
+
+### Version-specific behavior
+
+```typescript
+const version = ctx.facts?.distroVersion ?? ""
+if (version.startsWith("24")) {
+  // Ubuntu 24.x specific configuration
+}
+```
+
+## All fields
+
+The complete `HostFacts` type:
+
+```typescript
+interface HostFacts {
+  readonly distro: DistroFamily
+  readonly distroId: string
+  readonly distroVersion: string
+  readonly pkgManager: PackageManager
+  readonly initSystem: InitSystem
+  readonly arch: string
+}
+```
+
+When probing fails entirely, `ctx.facts` equals `UNKNOWN_HOST_FACTS`:
+
+```typescript
+const UNKNOWN_HOST_FACTS: HostFacts = {
+  distro: "unknown",
+  distroId: "",
+  distroVersion: "",
+  pkgManager: null,
+  initSystem: null,
+  arch: "",
+}
+```

@@ -1,0 +1,216 @@
+---
+title: Library API
+description: Using Ignition programmatically as a TypeScript library.
+---
+
+Ignition can be imported as a library for programmatic use. Everything is exported from `@grovemotorco/ignition`.
+
+## Importing
+
+```typescript
+import {
+  createResources,
+  createSystemSSHConnection,
+  loadInventory,
+  resolveTargets,
+  runRecipe,
+  EventBus,
+  PrettyReporter,
+} from "@grovemotorco/ignition"
+
+import type {
+  ExecutionContext,
+  Inventory,
+  ResolvedHost,
+  RunSummary,
+  RecipeFunction,
+  Transport,
+} from "@grovemotorco/ignition"
+```
+
+## Key functions
+
+### `runRecipe()`
+
+Execute a recipe against one or more hosts.
+
+```typescript
+import {
+  createSystemSSHConnection,
+  loadInventory,
+  resolveTargets,
+  runRecipe,
+  PrettyReporter,
+} from "@grovemotorco/ignition"
+
+const inventoryUrl = new URL("./inventory.ts", import.meta.url).href
+const { inventory } = await loadInventory(inventoryUrl)
+const hosts = resolveTargets(inventory, ["@web"], inventoryUrl)
+
+const connections = await Promise.all(
+  hosts.map(async (h) => ({
+    host: {
+      name: h.name,
+      hostname: h.hostname,
+      user: h.user,
+      port: h.port,
+      vars: h.vars,
+    },
+    connection: await createSystemSSHConnection({
+      hostname: h.hostname,
+      port: h.port,
+      user: h.user,
+      privateKey: h.privateKey,
+      hostKeyPolicy: "accept-new",
+    }),
+  })),
+)
+
+const summary: RunSummary = await runRecipe({
+  recipe: "./deploy.ts",
+  hosts: connections,
+  mode: "apply",
+  errorMode: "fail-fast",
+  verbose: false,
+  reporter: new PrettyReporter({ mode: "apply" }),
+})
+
+if (summary.hasFailures) {
+  process.exit(1)
+}
+```
+
+### `createResources()`
+
+Get bound resource functions for a context. Used inside recipes:
+
+```typescript
+const { apt, file, directory, exec, service } = createResources(ctx)
+```
+
+### `loadInventory()`
+
+Load an inventory file by path:
+
+```typescript
+const inventoryUrl = new URL("./hosts.ts", import.meta.url).href
+const { inventory, path } = await loadInventory(inventoryUrl)
+```
+
+### `resolveTargets()`
+
+Resolve target strings against an inventory:
+
+```typescript
+const hosts: ResolvedHost[] = resolveTargets(inventory, ["@web", "db-1"])
+```
+
+### `createSystemSSHConnection()`
+
+Create an SSH connection:
+
+```typescript
+const connection = await createSystemSSHConnection({
+  hostname: "10.0.1.10",
+  port: 22,
+  user: "deploy",
+  hostKeyPolicy: "accept-new",
+  multiplexing: true,
+})
+```
+
+## Resource registry
+
+Access the built-in resource definitions:
+
+```typescript
+import { defaultRegistry, ResourceRegistry } from "@grovemotorco/ignition"
+
+// List all resource types
+const types = defaultRegistry.types() // ["exec", "file", "apt", "service", "directory"]
+
+// Get a definition
+const aptDef = defaultRegistry.get("apt")
+
+// Get all definitions
+const definitions = defaultRegistry.definitions()
+```
+
+## Event system
+
+Create an event bus for observability:
+
+```typescript
+import { EventBus } from "@grovemotorco/ignition"
+
+const bus = new EventBus()
+
+const unsubscribe = bus.on((event) => {
+  console.log(`[${event.type}]`, event)
+})
+
+// Pass to runRecipe via the eventBus option
+```
+
+## CI/CD integration
+
+Example: run a recipe and output JSON results:
+
+```typescript
+import { createSystemSSHConnection, runRecipe, QuietReporter } from "@grovemotorco/ignition"
+
+const summary = await runRecipe({
+  recipe: "./deploy.ts",
+  hosts: [
+    {
+      host: { name: "web-1", hostname: "10.0.1.10", user: "deploy", port: 22, vars: {} },
+      connection: await createSystemSSHConnection({
+        hostname: "10.0.1.10",
+        user: "deploy",
+        port: 22,
+        hostKeyPolicy: "accept-new",
+      }),
+    },
+  ],
+  mode: "apply",
+  errorMode: "fail-fast",
+  verbose: false,
+  reporter: new QuietReporter(),
+})
+
+// Output JSON for CI consumption
+console.log(JSON.stringify(summary, null, 2))
+process.exit(summary.hasFailures ? 1 : 0)
+```
+
+## Full export list
+
+The complete set of exports from `@grovemotorco/ignition`:
+
+**Core functions:** `executeResource`, `requireCapability`, `resolvePolicy`, `runRecipe`, `probeHostFacts`, `buildCacheKey`
+
+**Resource factories:** `createResources`, `createExec`, `createFile`, `createApt`, `createService`, `createDirectory`
+
+**Resource definitions:** `execDefinition`, `fileDefinition`, `aptDefinition`, `serviceDefinition`, `directoryDefinition`
+
+**Resource schemas:** `execSchema`, `fileSchema`, `aptSchema`, `serviceSchema`, `directorySchema`
+
+**Registry:** `ResourceRegistry`, `defaultRegistry`, `getFullSchema`, `getRecipeSchema`, `getInventorySchema`, `getCliSchema`, `getRunSummarySchema`
+
+**SSH:** `createSystemSSHConnection`, `SystemSSHConnection`, `controlPath`, `hasCapability`
+
+**Inventory:** `loadInventory`, `resolveTargets`
+
+**Recipe:** `loadRecipe`
+
+**Cache:** `MemoryCheckResultCache`, `FileCheckResultCache`
+
+**Output:** `PrettyReporter`, `QuietReporter`, `JsonFormatter`, `MinimalFormatter`, `EventBus`, `EventReporter`, `NdjsonStream`, `Spinner`
+
+**Dashboard:** `DashboardServer`, `DashboardClient`
+
+**Config:** `loadConfig`, `mergeWithConfig`, `validateConfig`, `ConfigValidationError`
+
+**Errors:** `IgnitionError`, `SSHConnectionError`, `SSHCommandError`, `TransferError`, `ResourceError`, `RecipeLoadError`, `InventoryError`, `CapabilityError`, `isRetryable`
+
+**Constants:** `DEFAULT_CONCURRENCY`, `DEFAULT_RESOURCE_POLICY`, `UNKNOWN_HOST_FACTS`, `ALL_TRANSPORT_CAPABILITIES`, `DEFAULT_CACHE_FILE`, `DEFAULT_CACHE_TTL_MS`, `VERSION`

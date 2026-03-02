@@ -1,0 +1,122 @@
+---
+title: exec
+description: Run arbitrary commands on remote hosts.
+---
+
+The `exec` resource runs commands on the remote host via SSH. It is imperative by default, with optional guard conditions (`unless` / `onlyIf`) for conditional execution.
+
+## Input
+
+| Field     | Type                     | Default | Required | Description                                      |
+| --------- | ------------------------ | ------- | -------- | ------------------------------------------------ |
+| `command` | `string`                 | —       | Yes      | The command to run                               |
+| `sudo`    | `boolean`                | `false` | No       | Run with `sudo sh -c`                            |
+| `cwd`     | `string`                 | —       | No       | Working directory                                |
+| `env`     | `Record<string, string>` | —       | No       | Environment variables                            |
+| `check`   | `boolean`                | `true`  | No       | If `false`, non-zero exit codes are not failures |
+| `unless`  | `string`                 | —       | No       | Skip apply when this guard command exits 0       |
+| `onlyIf`  | `string`                 | —       | No       | Run apply only when this guard command exits 0   |
+
+## Output
+
+| Field      | Type     | Description              |
+| ---------- | -------- | ------------------------ |
+| `exitCode` | `number` | Exit code of the command |
+| `stdout`   | `string` | Standard output          |
+| `stderr`   | `string` | Standard error           |
+
+## Behavior
+
+### Check phase
+
+Without guards, `check()` returns `inDesiredState: false` (imperative behavior).
+
+With guards:
+
+- `unless`: if guard exits `0`, resource is treated as already in desired state (apply is skipped)
+- `onlyIf`: if guard exits non-zero, precondition is not met and apply is skipped
+- `unless` and `onlyIf` are mutually exclusive
+
+### Apply phase
+
+1. Builds the command string:
+   - Prepends environment variables as `KEY=VALUE` pairs
+   - Wraps with `cd <cwd> &&` if `cwd` is specified
+   - Wraps with `sudo sh -c '...'` if `sudo` is true
+2. Executes the command via SSH.
+3. If the command exits with non-zero and `check` is `true`, throws `SSHCommandError`.
+4. If `check` is `false`, the exit code is captured but not treated as a failure.
+
+## Annotations
+
+| Property              | Value      |
+| --------------------- | ---------- |
+| Nature                | Imperative |
+| Idempotent            | No         |
+| Destructive           | Yes        |
+| Read-only             | No         |
+| Required capabilities | `exec`     |
+
+## Examples
+
+### Basic command
+
+```typescript
+await exec({ command: "nginx -t" })
+```
+
+### With sudo
+
+```typescript
+await exec({ command: "systemctl daemon-reload", sudo: true })
+```
+
+### With working directory
+
+```typescript
+await exec({ command: "npm install --production", cwd: "/opt/app" })
+```
+
+### With environment variables
+
+```typescript
+await exec({
+  command: "npm run build",
+  cwd: "/opt/app",
+  env: { NODE_ENV: "production", CI: "true" },
+})
+```
+
+### Tolerating non-zero exit codes
+
+```typescript
+await exec({ command: "grep -q 'done' /tmp/flag", check: false })
+```
+
+With `check: false`, the resource won't fail even if the command returns a non-zero exit code. The exit code is still captured in the output.
+
+### Guarded execution
+
+```typescript
+await exec({
+  command: "npm install -g pm2",
+  unless: "command -v pm2",
+  sudo: true,
+})
+```
+
+### Capturing output
+
+```typescript
+const result = await exec({ command: "cat /etc/hostname" })
+const hostname = result.output?.stdout.trim()
+```
+
+## Gotchas
+
+- Unguarded `exec` always reports `changed` because it can't determine whether the command mutated state.
+- In check mode (`ignition check`), unguarded exec reports as "would change" since it's imperative.
+- Guarded exec (`unless`/`onlyIf`) can report `ok` when the guard condition determines the desired state is already met.
+- Set `check: false` for commands where a non-zero exit code is acceptable (e.g., `grep` returning 1 for no match).
+- `sudo` wraps the entire command with `sudo sh -c '...'` — shell features like pipes and redirects work inside.
+- Command output (stdout/stderr) can be streamed in real time when verbose mode is enabled.

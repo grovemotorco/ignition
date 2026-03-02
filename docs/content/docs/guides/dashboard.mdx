@@ -1,0 +1,116 @@
+---
+title: Dashboard
+description: Real-time web dashboard for monitoring provisioning runs.
+---
+
+Ignition includes a web dashboard that shows live progress across hosts via WebSocket.
+
+## What the dashboard shows
+
+- Run status (in progress, completed, failed)
+- Per-host progress with resource-level detail
+- Resource statuses (ok, changed, failed) with timing
+- Streaming command output
+- Multi-run history with replay
+
+## Ephemeral mode
+
+Add `--dashboard` to any `run` or `check` command to start a temporary dashboard that lives for the duration of the run:
+
+```bash
+ignition run deploy.ts @web -i hosts.ts --dashboard
+```
+
+The dashboard starts on `127.0.0.1:9090` by default. Specify a custom address:
+
+```bash
+ignition run deploy.ts @web -i hosts.ts --dashboard :8080
+ignition run deploy.ts @web -i hosts.ts --dashboard 0.0.0.0:9090
+```
+
+Open the printed URL in your browser to watch the run in real time.
+
+## Persistent mode
+
+Start a long-running dashboard that accepts events from multiple CLI runs:
+
+```bash
+# Terminal 1 — start the dashboard
+ignition dashboard
+
+# Terminal 2 — run recipes (auto-connects to the running dashboard)
+ignition run deploy.ts @web -i hosts.ts --dashboard
+ignition run rollback.ts @web -i hosts.ts --dashboard
+```
+
+With a custom address:
+
+```bash
+ignition dashboard 0.0.0.0:8080
+```
+
+## Auto-detection
+
+When you pass `--dashboard`, the CLI probes the target address first:
+
+1. If a dashboard is already running at that address, the CLI connects as a **producer** and pushes events to it
+2. If no dashboard is found, the CLI starts an **ephemeral** dashboard server
+
+This means you can start the persistent dashboard once and every subsequent run automatically feeds into it.
+
+## REST API
+
+The dashboard server exposes a REST API:
+
+| Endpoint                      | Description                           |
+| ----------------------------- | ------------------------------------- |
+| `GET /api/health`             | Health check (`{ status: "ok" }`)     |
+| `GET /api/runs`               | List run summaries (active + history) |
+| `GET /api/runs/:runId/events` | Full event replay for a specific run  |
+| `GET /api/events`             | Events for the current/latest run     |
+
+## WebSocket endpoints
+
+| Endpoint   | Direction       | Description                                |
+| ---------- | --------------- | ------------------------------------------ |
+| `/ws`      | Server → Client | Browser consumers receive broadcast events |
+| `/ws/push` | Client → Server | CLI producers push events to the dashboard |
+
+Browser clients connecting to `/ws` receive a replay of all events for the current run, then live events as they occur.
+
+## Run history
+
+The persistent dashboard keeps a bounded history of runs:
+
+- Default: 10 runs retained
+- Configure with `--var history=20` on `ignition dashboard`
+- Each run stores up to 10,000 events
+- When the buffer is full, output chunk events are dropped first to preserve lifecycle events
+
+Browse historical runs through the dashboard sidebar and replay them.
+
+## Configuration
+
+Set `dashboard` in your config file to always use the dashboard:
+
+```typescript
+import type { IgnitionConfig } from "@grovemotorco/ignition"
+
+export default {
+  dashboard: "127.0.0.1:9090",
+} satisfies IgnitionConfig
+```
+
+## Dashboard development
+
+For working on the dashboard UI itself:
+
+```bash
+# Terminal 1 — mock event server (pushes synthetic events)
+bun run src/dashboard/dev-server.ts
+
+# Terminal 2 — Vite dev server with HMR
+cd src/dashboard/ui && bunx vite
+```
+
+Open `http://localhost:5173` to develop the dashboard UI with hot module replacement. The Vite dev server proxies `/ws` and `/api` requests to the mock backend.

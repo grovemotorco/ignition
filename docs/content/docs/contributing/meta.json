@@ -1,0 +1,5 @@
+{
+  "title": "Contributing",
+  "icon": "Users",
+  "pages": ["development", "architecture", "testing"]
+}

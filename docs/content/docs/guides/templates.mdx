@@ -1,0 +1,151 @@
+---
+title: Templates
+description: Generate dynamic configuration files with TypeScript template functions.
+---
+
+Templates are TypeScript functions that generate configuration file content. They receive the merged variables from the execution context and return a string.
+
+## Template functions
+
+A template is a function with the signature `(vars: TemplateContext) => string`:
+
+```typescript
+import type { TemplateContext } from "@grovemotorco/ignition"
+
+const nginxConf = (vars: TemplateContext) => `
+server {
+    listen ${vars.port ?? 80};
+    server_name ${vars.domain ?? "localhost"};
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+    }
+}
+`
+```
+
+Use it with the `file` resource:
+
+```typescript
+await file({
+  path: "/etc/nginx/sites-available/app.conf",
+  template: nginxConf,
+  mode: "644",
+})
+```
+
+The template receives `ctx.vars` — the merged variables from inventory (global, group, host), `--var` CLI flags, and any vars set in the recipe.
+
+## Inline templates
+
+For short templates, define them inline:
+
+```typescript
+await file({
+  path: "/etc/app.conf",
+  template: (vars) => `
+    port=${vars.app_port ?? 3000}
+    env=${vars.env ?? "development"}
+    workers=${vars.workers ?? 4}
+  `,
+})
+```
+
+## External template files
+
+For complex templates, put them in separate files:
+
+```typescript title="templates/nginx-site.conf.ts"
+import type { TemplateContext } from "@grovemotorco/ignition"
+
+export default (vars: TemplateContext) => {
+  const port = vars.http_port ?? "80"
+  const domain = vars.domain ?? "localhost"
+
+  return `server {
+    listen ${port};
+    server_name ${domain};
+
+    root /var/www/${domain};
+    index index.html;
+
+    access_log /var/log/nginx/${domain}_access.log;
+    error_log /var/log/nginx/${domain}_error.log;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}`
+}
+```
+
+Import and use in your recipe:
+
+```typescript
+import nginxSiteConf from "./templates/nginx-site.conf.ts"
+
+export default async function (ctx: ExecutionContext) {
+  const { file } = createResources(ctx)
+
+  await file({
+    path: "/etc/nginx/sites-available/app.conf",
+    template: nginxSiteConf,
+    mode: "644",
+  })
+}
+```
+
+## Variables in templates
+
+Templates receive `TemplateContext`, which is `Record<string, unknown>`. Cast values as needed:
+
+```typescript
+const systemdUnit = (vars: TemplateContext) => {
+  const name = vars.app_name as string
+  const port = vars.app_port as number
+  const user = (vars.app_user as string) ?? name
+
+  return `[Unit]
+Description=${name}
+After=network.target
+
+[Service]
+Type=simple
+User=${user}
+ExecStart=/usr/bin/node /opt/${name}/server.js
+Environment=PORT=${port}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target`
+}
+```
+
+## TypeScript advantages
+
+Since templates are TypeScript functions, you get:
+
+- **Type checking** — catch typos and type errors at compile time
+- **IDE support** — autocompletion, inline docs, refactoring
+- **Logic** — conditionals, loops, helper functions
+- **Imports** — share constants, utilities, and sub-templates across files
+
+```typescript
+const generateUpstreamBlock = (servers: string[]) => servers.map((s) => `  server ${s};`).join("\n")
+
+const nginxConf = (vars: TemplateContext) => {
+  const backends = vars.backends as string[]
+
+  return `
+upstream app {
+${generateUpstreamBlock(backends)}
+}
+
+server {
+    listen 80;
+    location / {
+        proxy_pass http://app;
+    }
+}`
+}
+```

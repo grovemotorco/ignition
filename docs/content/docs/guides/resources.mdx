@@ -1,0 +1,114 @@
+---
+title: Resources Overview
+description: The five built-in resources and how they work.
+---
+
+Resources are the building blocks of Ignition recipes. Each resource manages a specific aspect of server state.
+
+## The five resources
+
+| Resource                                           | Purpose                                      | Nature      |
+| -------------------------------------------------- | -------------------------------------------- | ----------- |
+| [`apt`](/docs/reference/resources/apt)             | Manage system packages                       | Declarative |
+| [`file`](/docs/reference/resources/file)           | Manage file contents, permissions, ownership | Declarative |
+| [`directory`](/docs/reference/resources/directory) | Manage directories                           | Declarative |
+| [`exec`](/docs/reference/resources/exec)           | Run arbitrary commands                       | Imperative  |
+| [`service`](/docs/reference/resources/service)     | Manage systemd services                      | Mixed       |
+
+## Declarative vs imperative
+
+**Declarative** resources describe a desired end state. Ignition checks the current state and only makes changes if needed:
+
+```typescript
+// Declarative: "nginx should be installed"
+await apt({ name: "nginx", state: "present" })
+// If already installed → ok (no action)
+// If not installed → installs it → changed
+```
+
+**Imperative** resources always execute their action:
+
+```typescript
+// Imperative: "run this command"
+await exec({ command: "npm install" })
+// Always runs → always reports changed
+```
+
+The `service` resource is mixed — `started` and `stopped` are declarative (they check first), while `restarted` and `reloaded` are imperative (they always execute).
+
+## Creating resources
+
+Use `createResources(ctx)` to get bound resource functions:
+
+```typescript
+import { createResources } from "@grovemotorco/ignition"
+
+export default async function (ctx: ExecutionContext) {
+  const { apt, file, directory, exec, service } = createResources(ctx)
+
+  // Each function is bound to the current ExecutionContext
+  await apt({ name: "curl", state: "present" })
+}
+```
+
+## Resource results
+
+Every resource call returns a `ResourceResult`:
+
+```typescript
+const result = await apt({ name: "nginx", state: "present" })
+
+result.status // "ok" | "changed" | "failed"
+result.type // "apt"
+result.name // "nginx"
+result.durationMs // execution time in milliseconds
+result.current // observed state before execution (undefined on failure)
+result.desired // target state from input (undefined on failure)
+result.output // resource-specific output data (undefined on failure)
+```
+
+### Status meanings
+
+| Status    | Meaning                                                                      |
+| --------- | ---------------------------------------------------------------------------- |
+| `ok`      | Already in the desired state. No changes made.                               |
+| `changed` | Was not in desired state. Changes were applied (or would be, in check mode). |
+| `failed`  | An error occurred during check or apply.                                     |
+
+## Resource call metadata
+
+Pass metadata as the second argument to tag, identify, or annotate resource calls:
+
+```typescript
+await apt({ name: "nginx", state: "present" }, { tags: ["web"], id: "install-nginx" })
+```
+
+| Field            | Type       | Purpose                                      |
+| ---------------- | ---------- | -------------------------------------------- |
+| `tags`           | `string[]` | Call-level labels for programmatic filtering |
+| `id`             | `string`   | Unique identifier for this call              |
+| `notify`         | `string[]` | Notification labels (for future use)         |
+| `sensitivePaths` | `string[]` | Fields to redact in logs                     |
+
+CLI `--tags` filtering applies to recipe `meta.tags`, not per-resource call metadata.
+
+## Check-then-apply lifecycle
+
+Every resource follows a two-phase cycle managed by `executeResource()`:
+
+1. **`check()`** — read-only, no side effects. Returns whether the resource is in the desired state.
+2. **`apply()`** — mutating. Only called if `check()` returned `inDesiredState: false` and the mode is `apply`.
+
+This gives you:
+
+- **Free dry-runs** — `ignition check` runs `check()` for every resource without calling `apply()`
+- **Safe re-runs** — if everything is already correct, nothing changes
+- **Explicit failures** — any resource that can't converge reports `failed`
+
+For the full API of each resource, see the individual reference pages:
+
+- [apt](/docs/reference/resources/apt)
+- [file](/docs/reference/resources/file)
+- [directory](/docs/reference/resources/directory)
+- [exec](/docs/reference/resources/exec)
+- [service](/docs/reference/resources/service)

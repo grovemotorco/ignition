@@ -1,0 +1,107 @@
+---
+title: Parallel Execution
+description: Multi-host parallelism, timeouts, and cancellation.
+---
+
+Ignition runs recipes against multiple hosts concurrently using a bounded worker pool.
+
+## How it works
+
+When targeting multiple hosts, Ignition uses a worker pool pattern:
+
+1. A queue of hosts is created.
+2. Up to `parallelism` workers run concurrently.
+3. Each worker picks the next host from the queue, runs the recipe, and picks another.
+4. Results are collected in input order (deterministic) regardless of completion order.
+
+```bash
+ignition run deploy.ts @web -i hosts.ts --parallelism 10
+```
+
+## The `--parallelism` flag
+
+| Flag                | Default | Description                        |
+| ------------------- | ------- | ---------------------------------- |
+| `--parallelism <n>` | `5`     | Maximum number of concurrent hosts |
+
+The actual concurrency is `min(parallelism, number of hosts)`. If you have 3 hosts and set `--parallelism 10`, only 3 workers run.
+
+```bash
+# Run against 20 hosts, 5 at a time (default)
+ignition run deploy.ts @all -i hosts.ts
+
+# Run against 20 hosts, 20 at a time (all parallel)
+ignition run deploy.ts @all -i hosts.ts --parallelism 20
+
+# Run sequentially (one at a time)
+ignition run deploy.ts @all -i hosts.ts --parallelism 1
+```
+
+## Fail-fast cancellation
+
+In `fail-fast` error mode (the default), a failure on any host cancels all sibling workers:
+
+1. Host `web-1` fails on a resource.
+2. The runner aborts all in-progress hosts via `AbortController`.
+3. Hosts that haven't started yet are skipped.
+4. Results include `cancelled: true` for interrupted hosts.
+
+This prevents wasting time when one host reveals a problem that likely affects others.
+
+In `fail-at-end` and `ignore` modes, other hosts continue running even when one fails.
+
+## Host timeout
+
+Set a maximum time for each host's complete recipe execution:
+
+```bash
+ignition run deploy.ts @web -i hosts.ts --host-timeout 300000  # 5 minutes
+```
+
+| Flag                  | Default | Description                      |
+| --------------------- | ------- | -------------------------------- |
+| `--host-timeout <ms>` | `0`     | Per-host timeout (0 = unlimited) |
+
+When a host exceeds its timeout:
+
+1. All in-progress resource operations for that host are cancelled.
+2. The host is marked as failed.
+3. In fail-fast mode, sibling hosts are also cancelled.
+
+## Signal propagation
+
+Cancellation flows through the system via `AbortController`:
+
+```
+Run-level controller
+  └── Per-host controller (timeout or fail-fast)
+       └── Per-resource controller (resource timeout)
+            └── Transport operations (SSH commands, SCP)
+```
+
+Each level can abort the levels below it. When a signal fires, in-progress SSH subprocesses are killed.
+
+## Tuning
+
+### When to increase parallelism
+
+- Large inventories (50+ hosts) with independent recipes
+- Fast network connections between controller and targets
+- SSH multiplexing enabled (default) to reduce connection overhead
+
+### When to decrease parallelism
+
+- Rate-limited APIs or package repositories
+- Shared resources (e.g. a single database being configured by multiple hosts)
+- Limited local CPU/memory (each SSH connection is a subprocess)
+- Flaky network connections where too many concurrent sessions cause drops
+
+### Sequential execution
+
+Set parallelism to 1 for strict sequential execution:
+
+```bash
+ignition run deploy.ts @web -i hosts.ts --parallelism 1
+```
+
+This is useful for rolling deploys where you want to verify each host before proceeding.

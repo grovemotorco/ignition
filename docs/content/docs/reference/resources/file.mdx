@@ -1,0 +1,130 @@
+---
+title: file
+description: Manage file contents, permissions, and ownership.
+---
+
+The `file` resource manages files on remote hosts. It compares content using SHA-256 checksums and is declarative and idempotent.
+
+## Input
+
+| Field      | Type                                | Default     | Required | Description                      |
+| ---------- | ----------------------------------- | ----------- | -------- | -------------------------------- |
+| `path`     | `string`                            | —           | Yes      | Absolute path on the remote host |
+| `content`  | `string`                            | —           | No       | Inline file content              |
+| `source`   | `string`                            | —           | No       | Local file path to copy via SCP  |
+| `template` | `(vars: TemplateContext) => string` | —           | No       | Template function                |
+| `mode`     | `string`                            | —           | No       | File mode (e.g. `"644"`)         |
+| `owner`    | `string`                            | —           | No       | File owner                       |
+| `group`    | `string`                            | —           | No       | File group                       |
+| `state`    | `"present" \| "absent"`             | `"present"` | No       | Whether the file should exist    |
+
+To create or replace content, use exactly one of `content`, `source`, or `template`.  
+If you're only managing attributes (`mode`, `owner`, `group`), the file must already exist.
+
+## Output
+
+| Field      | Type      | Description                          |
+| ---------- | --------- | ------------------------------------ |
+| `path`     | `string`  | The file path                        |
+| `checksum` | `string`  | SHA-256 checksum of the file content |
+| `changed`  | `boolean` | Whether the file was modified        |
+
+## Behavior
+
+### Content modes
+
+The `file` resource supports three mutually exclusive content modes:
+
+| Mode       | Source            | Transfer method                                |
+| ---------- | ----------------- | ---------------------------------------------- |
+| `content`  | Inline string     | Written via `cat >` with stdin                 |
+| `source`   | Local file        | Transferred via `scp`                          |
+| `template` | Template function | Evaluated with `ctx.vars`, written via `cat >` |
+
+### Check phase
+
+1. Tests file existence with `test -f`.
+2. For `state: "absent"` — in desired state if the file doesn't exist.
+3. For `state: "present"` — computes SHA-256 of the remote file content with `sha256sum` and compares against the expected content.
+4. Checks file mode, owner, and group via `stat` if specified.
+
+### Apply phase
+
+- `state: "present"`: writes content to the file, sets mode/owner/group if specified.
+- `state: "absent"`: removes the file with `rm -f`.
+- After writing, computes the final SHA-256 checksum.
+
+## Annotations
+
+| Property              | Value                                  |
+| --------------------- | -------------------------------------- |
+| Nature                | Declarative                            |
+| Idempotent            | Yes                                    |
+| Destructive           | Yes (when `state: "absent"`)           |
+| Read-only             | No                                     |
+| Required capabilities | `exec`, `transfer` (for `source` mode) |
+
+## Examples
+
+### Write static content
+
+```typescript
+await file({
+  path: "/etc/app.conf",
+  content: "key=value\nport=8080\n",
+  mode: "644",
+})
+```
+
+### Use a template
+
+```typescript
+await file({
+  path: "/etc/nginx/sites-available/app.conf",
+  template: (vars) => `
+server {
+    listen ${vars.port ?? 80};
+    server_name ${vars.domain};
+}`,
+  mode: "644",
+})
+```
+
+### Copy a local file
+
+```typescript
+await file({
+  path: "/opt/app/config.json",
+  source: "./configs/production.json",
+  mode: "600",
+  owner: "app",
+})
+```
+
+This uses `scp` to transfer the file and requires the `transfer` transport capability.
+
+### Remove a file
+
+```typescript
+await file({ path: "/tmp/old-config.conf", state: "absent" })
+```
+
+### Set ownership and permissions
+
+```typescript
+await file({
+  path: "/var/log/app.log",
+  content: "",
+  mode: "640",
+  owner: "app",
+  group: "app",
+})
+```
+
+## Gotchas
+
+- To create a missing file, set exactly one of `content`, `source`, or `template`.
+- `source` mode requires the `transfer` capability (uses `scp`). The other modes only need `exec`.
+- Templates receive `ctx.vars` — the merged variables from inventory, CLI `--var` flags, and recipe-set variables.
+- SHA-256 comparison means even whitespace-only changes are detected.
+- The `mode` field should be an octal string like `"644"`, not a number.

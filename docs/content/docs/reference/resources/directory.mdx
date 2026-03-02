@@ -1,0 +1,92 @@
+---
+title: directory
+description: Manage directories with ownership and permissions.
+---
+
+The `directory` resource ensures directories exist (or are absent) with the correct ownership and permissions. It is declarative and idempotent.
+
+## Input
+
+| Field       | Type                    | Default     | Required | Description                           |
+| ----------- | ----------------------- | ----------- | -------- | ------------------------------------- |
+| `path`      | `string`                | —           | Yes      | Absolute path to the directory        |
+| `mode`      | `string`                | —           | No       | Directory mode (e.g. `"755"`)         |
+| `owner`     | `string`                | —           | No       | Owner user                            |
+| `group`     | `string`                | —           | No       | Owner group                           |
+| `state`     | `"present" \| "absent"` | `"present"` | No       | Whether the directory should exist    |
+| `recursive` | `boolean`               | `true`      | No       | Use `mkdir -p` for recursive creation |
+
+## Output
+
+| Field     | Type      | Description                        |
+| --------- | --------- | ---------------------------------- |
+| `path`    | `string`  | The directory path                 |
+| `changed` | `boolean` | Whether the directory was modified |
+
+## Behavior
+
+### Check phase
+
+1. Tests directory existence with `test -d`.
+2. For `state: "absent"` — in desired state if the directory doesn't exist.
+3. For `state: "present"` — checks mode, owner, and group via `stat` if specified.
+
+### Apply phase
+
+- `state: "present"`: creates the directory with `mkdir -p` (or `mkdir` if `recursive: false`). Sets mode, owner, and group if specified.
+- `state: "absent"`: removes the directory with `rm -rf`.
+
+## Annotations
+
+| Property              | Value                        |
+| --------------------- | ---------------------------- |
+| Nature                | Declarative                  |
+| Idempotent            | Yes                          |
+| Destructive           | Yes (when `state: "absent"`) |
+| Read-only             | No                           |
+| Required capabilities | `exec`                       |
+
+## Examples
+
+### Create a directory with ownership
+
+```typescript
+await directory({
+  path: "/var/www/app",
+  owner: "www-data",
+  group: "www-data",
+  mode: "755",
+})
+```
+
+### Create nested directories
+
+```typescript
+await directory({ path: "/opt/app/data/uploads" })
+```
+
+With `recursive: true` (the default), all parent directories are created as needed.
+
+### Non-recursive creation
+
+```typescript
+await directory({ path: "/opt/app/logs", recursive: false })
+```
+
+Fails if `/opt/app` doesn't exist.
+
+### Remove a directory
+
+```typescript
+await directory({ path: "/tmp/old-deploy", state: "absent" })
+```
+
+**Warning:** `state: "absent"` runs `rm -rf` — this is destructive and recursive.
+
+## Gotchas
+
+- `recursive` defaults to `true`, meaning `mkdir -p` is used by default.
+- Set `recursive: false` to fail if parent directories don't exist.
+- `state: "absent"` runs `rm -rf` on the path. Use with care.
+- `mode` should be a string matching `stat -c %a` output (for example `"755"`), not a number.
+- `owner` and `group` are set independently — you can set one without the other.

@@ -1,0 +1,14 @@
+Output "{{OUTPUT_DIR}}/cli-check.gif"
+
+Set Theme { "name": "Ignition", "black": "#1c1c1e", "red": "#c44d2b", "green": "#5aaf78", "yellow": "#d4b868", "blue": "#5aafa0", "magenta": "#c8a050", "cyan": "#8cbfb0", "white": "#f0e4d0", "brightBlack": "#7a7a7e", "brightRed": "#d4603a", "brightGreen": "#5eca89", "brightYellow": "#fdd877", "brightBlue": "#8aaa90", "brightMagenta": "#d4b868", "brightCyan": "#5aafa0", "brightWhite": "#ffffff", "background": "#1c1c1e", "foreground": "#f0e4d0", "selection": "#38383b", "cursor": "#c44d2b" }
+
+Set FontSize 16
+Set FontFamily "Geist Mono"
+Set Width 2400
+Set Height 1200
+# Set Padding 40
+
+Type "ignition check examples/smoke-test.ts root@127.0.0.1:{{PORT}} --host-key-policy off --identity {{KEY_PATH}}"
+Sleep 500ms
+Enter
+Sleep 12s
