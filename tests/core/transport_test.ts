@@ -4,7 +4,7 @@ import { test, expect } from "bun:test"
  *
  * Tests the Transport interface, capability querying, hasCapability helper,
  * requireCapability guard, CapabilityError, and resource-level capability
- * checks. See ADR-0015, ISSUE-0020.
+ * checks.
  */
 
 import {

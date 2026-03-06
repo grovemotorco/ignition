@@ -2,7 +2,7 @@
  * Recipe type definitions.
  *
  * Recipes are TypeScript files with a default export function that receives an
- * ExecutionContext and uses resources to configure a host. See ADR-0006.
+ * ExecutionContext and uses resources to configure a host.
  */
 
 import type { ExecutionContext } from "../core/types.ts"
@@ -11,11 +11,11 @@ import type { ExecutionContext } from "../core/types.ts"
 export type RecipeFunction = (ctx: ExecutionContext) => Promise<void>
 
 /** Optional metadata exported alongside a recipe's default function. */
-export interface RecipeMeta {
+export type RecipeMeta = {
   /** Human-readable description of the recipe. */
-  readonly description?: string
+  description?: string | undefined
   /** Tags for filtering or categorization. */
-  readonly tags?: readonly string[]
+  tags?: string[] | undefined
 }
 
 /**
@@ -24,11 +24,11 @@ export interface RecipeMeta {
  * - `default` -- the recipe function (required)
  * - `meta` -- optional metadata
  */
-export interface RecipeModule {
+export type RecipeModule = {
   /** The recipe function. */
-  readonly fn: RecipeFunction
+  fn: RecipeFunction
   /** Optional metadata from the module's `meta` export. */
-  readonly meta?: RecipeMeta
+  meta?: RecipeMeta | undefined
   /** Resolved path to the recipe file. */
-  readonly path: string
+  path: string
 }

@@ -8,6 +8,7 @@ import {
   getRunSummarySchema,
 } from "../../core/registry.ts"
 
+/** CLI command that prints machine-readable schemas for Ignition surfaces. */
 export const schema = Cli.create("schema", {
   description: "Display resource schemas and CLI grammar",
 })

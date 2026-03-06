@@ -4,7 +4,6 @@
  * The Reporter interface is the contract for output during recipe execution.
  * `PrettyReporter` renders spinners, colors, and structured output to a TTY.
  * `QuietReporter` silently discards all output (useful for tests and embedding).
- * See ISSUE-0011, ISSUE-0043.
  */
 
 import type { HostRunSummary, Reporter, ResourceResult, RunMode } from "../core/types.ts"
@@ -44,15 +43,17 @@ export class QuietReporter implements Reporter {
 // ---------------------------------------------------------------------------
 
 /** Options for creating a PrettyReporter. */
-export interface PrettyReporterOptions {
+export type PrettyReporterOptions = {
   /** The writer to output to. Defaults to process.stderr. */
-  readonly writer?: {
-    readonly isTerminal: () => boolean
-    readonly columns?: () => number | undefined
-    writeSync(p: Uint8Array): number
-  }
+  writer?:
+    | {
+        isTerminal: () => boolean
+        columns?: (() => number | undefined) | undefined
+        writeSync(p: Uint8Array): number
+      }
+    | undefined
   /** The run mode (apply or check). */
-  readonly mode: RunMode
+  mode: RunMode
 }
 
 /**
@@ -63,15 +64,15 @@ export interface PrettyReporterOptions {
  * of "changed".
  */
 export class PrettyReporter implements Reporter {
-  readonly #writer: {
-    readonly isTerminal: () => boolean
-    readonly columns?: () => number | undefined
+  #writer: {
+    isTerminal: () => boolean
+    columns?: () => number | undefined
     writeSync(p: Uint8Array): number
   }
-  readonly #encoder = new TextEncoder()
-  readonly #mode: RunMode
-  readonly #spinner: Spinner
-  readonly #outputBuffers: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" }
+  #encoder = new TextEncoder()
+  #mode: RunMode
+  #spinner: Spinner
+  #outputBuffers: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" }
   #streamingActive = false
 
   constructor(opts: PrettyReporterOptions) {

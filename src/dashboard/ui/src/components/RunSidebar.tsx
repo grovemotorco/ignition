@@ -1,6 +1,6 @@
 import type { RunSummary } from "../state.ts"
 
-interface RunSidebarProps {
+type RunSidebarProps = {
   runs: RunSummary[]
   activeRunId: string | null
   onSelect: (runId: string) => void
@@ -14,6 +14,7 @@ function formatTime(iso: string): string {
   }
 }
 
+/** Render the historical run list used to switch between recorded runs. */
 export function RunSidebar({ runs, activeRunId, onSelect }: RunSidebarProps) {
   // Don't render sidebar when there's only 0-1 runs
   if (runs.length <= 1) return null

@@ -3,7 +3,7 @@
  *
  * Supports content (inline string), source (local file transfer), and
  * template (TypeScript function) modes. Compares SHA-256 checksums to
- * detect drift. See ISSUE-0008.
+ * detect drift.
  */
 
 import type {
@@ -17,30 +17,30 @@ import type {
 import { executeResource, requireCapability } from "../core/resource.ts"
 
 /** Input options for the file resource. */
-export interface FileInput {
+export type FileInput = {
   /** Absolute path on the remote host. */
-  readonly path: string
+  path: string
   /** Inline content to write. */
-  readonly content?: string
+  content?: string | undefined
   /** Local file path to transfer via scp. */
-  readonly source?: string
+  source?: string | undefined
   /** Template function that returns content string. */
-  readonly template?: (vars: TemplateContext) => string
+  template?: ((vars: TemplateContext) => string) | undefined
   /** File mode (e.g. "0644"). */
-  readonly mode?: string
+  mode?: string | undefined
   /** Owner user. */
-  readonly owner?: string
+  owner?: string | undefined
   /** Owner group. */
-  readonly group?: string
+  group?: string | undefined
   /** Whether the file should exist. Default: 'present'. */
-  readonly state?: "present" | "absent"
+  state?: "present" | "absent" | undefined
 }
 
 /** Output of a successful file resource. */
-export interface FileOutput {
-  readonly path: string
-  readonly checksum: string
-  readonly changed: boolean
+export type FileOutput = {
+  path: string
+  checksum: string
+  changed: boolean
 }
 
 /** Quote a string for safe shell interpolation. */
@@ -64,7 +64,7 @@ function resolveContent(input: FileInput, vars: Record<string, unknown>): string
   return undefined
 }
 
-/** Schema for the file resource. See ISSUE-0028. */
+/** Schema for the file resource. */
 export const fileSchema: ResourceSchema = {
   description: "Manage file content, ownership, and permissions on the remote host.",
   whenToUse: [

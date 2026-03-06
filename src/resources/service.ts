@@ -3,7 +3,6 @@
  *
  * `check()` queries systemctl for active/enabled state.
  * `apply()` starts/stops/restarts/reloads and enables/disables services.
- * See ISSUE-0008.
  */
 
 import type {
@@ -16,21 +15,21 @@ import type {
 import { executeResource, requireCapability } from "../core/resource.ts"
 
 /** Input options for the service resource. */
-export interface ServiceInput {
+export type ServiceInput = {
   /** Service name (e.g. "nginx"). */
-  readonly name: string
+  name: string
   /** Desired service state. */
-  readonly state?: "started" | "stopped" | "restarted" | "reloaded"
+  state?: "started" | "stopped" | "restarted" | "reloaded" | undefined
   /** Whether the service should be enabled at boot. */
-  readonly enabled?: boolean
+  enabled?: boolean | undefined
 }
 
 /** Output of a successful service resource. */
-export interface ServiceOutput {
-  readonly name: string
-  readonly active: string
-  readonly enabled: string
-  readonly changed: boolean
+export type ServiceOutput = {
+  name: string
+  active: string
+  enabled: string
+  changed: boolean
 }
 
 /** Quote a string for safe shell interpolation. */
@@ -38,7 +37,7 @@ function shellQuote(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`
 }
 
-/** Schema for the service resource. See ISSUE-0028. */
+/** Schema for the service resource. */
 export const serviceSchema: ResourceSchema = {
   description: "Manage systemd services — start, stop, restart, reload, enable, and disable.",
   whenToUse: [

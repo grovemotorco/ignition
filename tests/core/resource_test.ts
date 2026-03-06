@@ -58,7 +58,7 @@ function stubHost(): HostContext {
   }
 }
 
-interface ReporterCalls {
+type ReporterCalls = {
   starts: Array<{ type: string; name: string }>
   ends: ResourceResult[]
 }
@@ -352,7 +352,7 @@ test("reports resourceEnd before throwing in fail-fast", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// resolvePolicy (ISSUE-0016)
+// resolvePolicy
 // ---------------------------------------------------------------------------
 
 test("resolvePolicy — returns defaults when no override", () => {
@@ -375,7 +375,7 @@ test("resolvePolicy — full override replaces defaults", () => {
 })
 
 // ---------------------------------------------------------------------------
-// Timeout behavior (ISSUE-0016)
+// Timeout behavior
 // ---------------------------------------------------------------------------
 
 test("timeout — check phase times out", async () => {
@@ -434,7 +434,7 @@ test("timeout — no timeout when timeoutMs is 0", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Retry behavior (ISSUE-0016)
+// Retry behavior
 // ---------------------------------------------------------------------------
 
 test("retry — retries retryable SSHConnectionError in check phase", async () => {
@@ -650,7 +650,7 @@ test("retry — no attempts metadata when single attempt succeeds", async () => 
 })
 
 // ---------------------------------------------------------------------------
-// Policy — per-resource override (ISSUE-0016)
+// Policy — per-resource override
 // ---------------------------------------------------------------------------
 
 test("per-resource policy override is respected", async () => {
@@ -711,7 +711,7 @@ test("fail-fast still works with retries — throws after exhausting retries", a
 })
 
 // ---------------------------------------------------------------------------
-// Event bus decoupled from reporter (ISSUE-0029)
+// Event bus decoupled from reporter
 // ---------------------------------------------------------------------------
 
 test("wrapper reporter (non-EventReporter) still produces telemetry when ctx.eventBus is set", async () => {
@@ -832,7 +832,7 @@ test("no event bus — executeResource works without telemetry (backward compati
 })
 
 // ---------------------------------------------------------------------------
-// wrapTransport (ISSUE-0037)
+// wrapTransport
 // ---------------------------------------------------------------------------
 
 test("wrapTransport — merges defaults into exec opts", async () => {
@@ -910,7 +910,7 @@ test("wrapTransport — applies default signal to transfer/fetch when omitted", 
 })
 
 // ---------------------------------------------------------------------------
-// Verbose streaming wiring (ISSUE-0037)
+// Verbose streaming wiring
 // ---------------------------------------------------------------------------
 
 test("verbose=true — wires onStdout/onStderr callbacks via reporter", async () => {
@@ -1116,7 +1116,7 @@ test("verbose=true — emits resource_output events to event bus", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// ResourceCallMeta — tag filtering + meta passthrough (ISSUE-0031)
+// ResourceCallMeta — tag filtering + meta passthrough
 // ---------------------------------------------------------------------------
 
 test("meta — preserved on ResourceResult", async () => {
@@ -1300,7 +1300,7 @@ test("tag filter — emits event bus events for filtered-out resources", async (
 })
 
 // ---------------------------------------------------------------------------
-// Cancellation via AbortSignal (ISSUE-0030)
+// Cancellation via AbortSignal
 // ---------------------------------------------------------------------------
 
 test("cancellation — pre-aborted signal returns failed before check", async () => {
@@ -1568,7 +1568,7 @@ test("cancellation — ctx.signal available to resource check/apply", async () =
 })
 
 // ---------------------------------------------------------------------------
-// Post-check — reliable changed status (ISSUE-0036)
+// Post-check — reliable changed status
 // ---------------------------------------------------------------------------
 
 test("postCheck — confirms change when post-check returns inDesiredState true", async () => {

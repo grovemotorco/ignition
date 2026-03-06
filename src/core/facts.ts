@@ -4,7 +4,6 @@
  * Runs a small number of SSH commands after connectivity is verified to
  * detect OS family, package manager, init system, and architecture.
  * Results are cached on ExecutionContext for use by all resources.
- * See ISSUE-0032.
  */
 
 import type { Transport } from "../ssh/types.ts"

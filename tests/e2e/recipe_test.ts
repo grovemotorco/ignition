@@ -5,8 +5,8 @@
  * RunSummary. Covers idempotence (second run = all ok), check mode (dry-run
  * without mutation), and error mode (fail-fast / fail-at-end / ignore).
  *
- * Uses one shared sandbox per suite. Requires DENO_DEPLOY_TOKEN. Skips
- * gracefully when absent. See ADR-0017, ISSUE-0022.
+ * Uses one shared sandbox per suite. Requires DENO_DEPLOY_TOKEN and skips
+ * gracefully when absent.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"

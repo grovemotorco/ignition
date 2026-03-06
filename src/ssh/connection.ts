@@ -3,7 +3,6 @@
  *
  * Uses `Bun.spawn` to shell out. Supports OpenSSH multiplexing
  * (ControlMaster/ControlPersist) for connection reuse across commands.
- * See ADR-0004 and ADR-0009.
  */
 
 import { SSHConnectionError, TransferError } from "../core/errors.ts"
@@ -167,10 +166,10 @@ function wireAbortSignal(proc: { kill(): void }, signal?: AbortSignal): () => vo
  * via `Bun.spawn`. Supports OpenSSH multiplexing for connection reuse.
  *
  * Implements the full Transport interface with all four capabilities:
- * exec, transfer, fetch, and ping. See ADR-0004, ADR-0015.
+ * exec, transfer, fetch, and ping.
  */
 export class SystemSSHConnection implements Transport {
-  readonly config: SSHConnectionConfig
+  config: SSHConnectionConfig
 
   constructor(config: SSHConnectionConfig) {
     this.config = config
@@ -196,7 +195,7 @@ export class SystemSSHConnection implements Transport {
           }, timeoutMs)
         : undefined
 
-    // Forward external signal into derived controller (ISSUE-0030)
+    // Forward external signal into derived controller
     const externalSignal = opts?.signal
     if (externalSignal?.aborted) {
       controller.abort()

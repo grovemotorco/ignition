@@ -1,7 +1,5 @@
 import { test, expect } from "bun:test"
-/**
- * Unit tests for stableStringify() and redact() — ISSUE-0033.
- */
+/** Unit tests for stableStringify() and redact(). */
 
 import { redact, stableStringify } from "../../src/core/serialize.ts"
 import { buildCacheKey } from "../../src/core/cache.ts"
@@ -307,7 +305,7 @@ test("redact — preserves Date objects for JSON serialization", () => {
 })
 
 // ---------------------------------------------------------------------------
-// Cache key stability — ISSUE-0033 acceptance criterion
+// Cache key stability
 // ---------------------------------------------------------------------------
 
 function sampleKeyParts(overrides?: Partial<CacheKeyParts>): CacheKeyParts {

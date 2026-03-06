@@ -3,7 +3,7 @@
  *
  * Defines a unified event model for run/host/resource lifecycle telemetry.
  * All reporters and formatters consume the same event stream, ensuring
- * consistent output regardless of sink. See ADR-0016, ISSUE-0021.
+ * consistent output regardless of sink.
  */
 
 import type {
@@ -24,15 +24,15 @@ import { redact } from "../core/serialize.ts"
 export type CorrelationId = string
 
 /** Correlation context threaded through all events in a run. */
-export interface CorrelationContext {
+export type CorrelationContext = {
   /** Unique ID for the entire run. */
-  readonly runId: CorrelationId
+  runId: CorrelationId
   /** Unique ID for the current host (absent for run-level events). */
-  readonly hostId?: CorrelationId
+  hostId?: CorrelationId | undefined
   /** Unique ID for the current resource execution (absent for run/host-level events). */
-  readonly resourceId?: CorrelationId
+  resourceId?: CorrelationId | undefined
   /** 1-based attempt number (present only for retry-related events). */
-  readonly attempt?: number
+  attempt?: number | undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -51,13 +51,13 @@ export type EventType =
   | "resource_output"
 
 /** Base shape shared by all events. */
-export interface BaseEvent {
+export type BaseEvent = {
   /** Event type discriminant. */
-  readonly type: EventType
+  type: EventType
   /** ISO-8601 timestamp of event emission. */
-  readonly timestamp: string
+  timestamp: string
   /** Correlation IDs for tracing. */
-  readonly correlation: CorrelationContext
+  correlation: CorrelationContext
 }
 
 // ---------------------------------------------------------------------------
@@ -65,19 +65,19 @@ export interface BaseEvent {
 // ---------------------------------------------------------------------------
 
 /** Emitted when a run begins. */
-export interface RunStartedEvent extends BaseEvent {
-  readonly type: "run_started"
-  readonly mode: RunMode
-  readonly errorMode: ErrorMode
-  readonly hostCount: number
+export type RunStartedEvent = BaseEvent & {
+  type: "run_started"
+  mode: RunMode
+  errorMode: ErrorMode
+  hostCount: number
 }
 
 /** Emitted when a run completes. */
-export interface RunFinishedEvent extends BaseEvent {
-  readonly type: "run_finished"
-  readonly durationMs: number
-  readonly hasFailures: boolean
-  readonly hostCount: number
+export type RunFinishedEvent = BaseEvent & {
+  type: "run_finished"
+  durationMs: number
+  hasFailures: boolean
+  hostCount: number
 }
 
 // ---------------------------------------------------------------------------
@@ -85,20 +85,20 @@ export interface RunFinishedEvent extends BaseEvent {
 // ---------------------------------------------------------------------------
 
 /** Emitted when a host begins execution. */
-export interface HostStartedEvent extends BaseEvent {
-  readonly type: "host_started"
-  readonly host: HostContext
+export type HostStartedEvent = BaseEvent & {
+  type: "host_started"
+  host: HostContext
 }
 
 /** Emitted when a host completes execution. */
-export interface HostFinishedEvent extends BaseEvent {
-  readonly type: "host_finished"
-  readonly host: HostContext
-  readonly ok: number
-  readonly changed: number
-  readonly failed: number
-  readonly durationMs: number
-  readonly cancelled?: boolean
+export type HostFinishedEvent = BaseEvent & {
+  type: "host_finished"
+  host: HostContext
+  ok: number
+  changed: number
+  failed: number
+  durationMs: number
+  cancelled?: boolean | undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -106,40 +106,40 @@ export interface HostFinishedEvent extends BaseEvent {
 // ---------------------------------------------------------------------------
 
 /** Emitted when a resource begins execution. */
-export interface ResourceStartedEvent extends BaseEvent {
-  readonly type: "resource_started"
-  readonly resourceType: string
-  readonly resourceName: string
+export type ResourceStartedEvent = BaseEvent & {
+  type: "resource_started"
+  resourceType: string
+  resourceName: string
 }
 
 /** Emitted when a resource completes execution. */
-export interface ResourceFinishedEvent extends BaseEvent {
-  readonly type: "resource_finished"
-  readonly resourceType: string
-  readonly resourceName: string
-  readonly status: ResourceStatus
-  readonly durationMs: number
-  readonly error?: { readonly message: string; readonly name: string }
-  readonly cacheHit?: boolean
+export type ResourceFinishedEvent = BaseEvent & {
+  type: "resource_finished"
+  resourceType: string
+  resourceName: string
+  status: ResourceStatus
+  durationMs: number
+  error?: { message: string; name: string } | undefined
+  cacheHit?: boolean | undefined
 }
 
 /** Emitted when a resource phase is retried. */
-export interface ResourceRetryEvent extends BaseEvent {
-  readonly type: "resource_retry"
-  readonly resourceType: string
-  readonly resourceName: string
-  readonly phase: "check" | "apply" | "post-check"
-  readonly error: { readonly message: string; readonly name: string }
-  readonly durationMs: number
+export type ResourceRetryEvent = BaseEvent & {
+  type: "resource_retry"
+  resourceType: string
+  resourceName: string
+  phase: "check" | "apply" | "post-check"
+  error: { message: string; name: string }
+  durationMs: number
 }
 
 /** Emitted when a resource produces stdout/stderr output during execution. */
-export interface ResourceOutputEvent extends BaseEvent {
-  readonly type: "resource_output"
-  readonly resourceType: string
-  readonly resourceName: string
-  readonly stream: "stdout" | "stderr"
-  readonly chunk: string
+export type ResourceOutputEvent = BaseEvent & {
+  type: "resource_output"
+  resourceType: string
+  resourceName: string
+  stream: "stdout" | "stderr"
+  chunk: string
 }
 
 /** Discriminated union of all lifecycle events. */
@@ -171,8 +171,8 @@ export type EventListener = (event: LifecycleEvent) => void
  * Thread-safe for concurrent host execution — each emit is synchronous.
  */
 export class EventBus {
-  readonly #listeners: EventListener[] = []
-  readonly #runId: CorrelationId
+  #listeners: EventListener[] = []
+  #runId: CorrelationId
   #idCounter = 0
 
   constructor(runId?: CorrelationId) {
@@ -349,13 +349,20 @@ export class EventBus {
  * a reference to the event bus for correlation.
  */
 export class EventReporter {
-  readonly #bus: EventBus
-  readonly #hostId: CorrelationId
-  readonly #delegate?: {
-    resourceStart(type: string, name: string): void
-    resourceEnd(result: ResourceResult): void
-    resourceOutput?(type: string, name: string, stream: "stdout" | "stderr", chunk: string): void
-  }
+  #bus: EventBus
+  #hostId: CorrelationId
+  #delegate?:
+    | {
+        resourceStart(type: string, name: string): void
+        resourceEnd(result: ResourceResult): void
+        resourceOutput?(
+          type: string,
+          name: string,
+          stream: "stdout" | "stderr",
+          chunk: string,
+        ): void
+      }
+    | undefined
 
   constructor(
     bus: EventBus,
@@ -445,12 +452,12 @@ export class EventReporter {
  * Each event is serialized as a single JSON line followed by `\n`.
  * Suitable for piping to log aggregators, monitoring tools, or `jq`.
  * When a redaction policy is provided, sensitive fields are replaced
- * before serialization. See ISSUE-0033.
+ * before serialization.
  */
 export class NdjsonStream {
-  readonly #writer: { writeSync(p: Uint8Array): number }
-  readonly #encoder = new TextEncoder()
-  readonly #redactionPolicy?: RedactionPolicy
+  #writer: { writeSync(p: Uint8Array): number }
+  #encoder = new TextEncoder()
+  #redactionPolicy?: RedactionPolicy | undefined
 
   constructor(writer: { writeSync(p: Uint8Array): number }, redactionPolicy?: RedactionPolicy) {
     this.#writer = writer
@@ -458,7 +465,7 @@ export class NdjsonStream {
   }
 
   /** EventListener-compatible handler. */
-  readonly listener: EventListener = (event: LifecycleEvent): void => {
+  listener: EventListener = (event: LifecycleEvent): void => {
     const output = this.#redactionPolicy ? redact(event, this.#redactionPolicy) : event
     const line = JSON.stringify(output, serializeError) + "\n"
     this.#writer.writeSync(this.#encoder.encode(line))

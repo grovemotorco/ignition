@@ -5,8 +5,7 @@
  * and produces a RunSummary with per-host results and timing. Manages transport
  * lifecycle (close/cleanup) per host. Supports bounded host-level concurrency
  * with cancellation and timeout semantics. Optionally emits lifecycle events
- * via an EventBus for observability. See ISSUE-0007, ISSUE-0014, ISSUE-0015,
- * ISSUE-0021, ADR-0010, ADR-0015, ADR-0016.
+ * via an EventBus for observability.
  */
 
 import { fileURLToPath } from "node:url"
@@ -34,36 +33,36 @@ import type { EventBus } from "../output/events.ts"
 export type { RecipeFunction } from "../recipe/types.ts"
 
 /** Options for runRecipe(). */
-export interface RunRecipeOptions {
+export type RunRecipeOptions = {
   /** Recipe function to execute, or path to a recipe .ts file to load. */
-  readonly recipe: RecipeFunction | string
+  recipe: RecipeFunction | string
   /** Hosts to run against. */
-  readonly hosts: ReadonlyArray<{
-    readonly host: HostContext
-    readonly connection: Transport
+  hosts: ReadonlyArray<{
+    host: HostContext
+    connection: Transport
   }>
   /** Run mode (apply or check). */
-  readonly mode: RunMode
+  mode: RunMode
   /** Error handling strategy. */
-  readonly errorMode: ErrorMode
+  errorMode: ErrorMode
   /** Verbose output. */
-  readonly verbose: boolean
+  verbose: boolean
   /** Reporter for output. */
-  readonly reporter: Reporter
+  reporter: Reporter
   /** CLI variable overrides. */
-  readonly vars?: Record<string, unknown>
+  vars?: Record<string, unknown> | undefined
   /** Optional recipe tag filter (intersection with recipe meta tags). */
-  readonly tags?: readonly string[]
-  /** Concurrency options for multi-host runs. See ADR-0010. */
-  readonly concurrency?: Partial<ConcurrencyOptions>
-  /** Global resource execution policy (timeout/retry). See ADR-0011. */
-  readonly resourcePolicy?: Partial<ResourcePolicy>
+  tags?: string[] | undefined
+  /** Concurrency options for multi-host runs. */
+  concurrency?: Partial<ConcurrencyOptions> | undefined
+  /** Global resource execution policy (timeout/retry). */
+  resourcePolicy?: Partial<ResourcePolicy> | undefined
   /** AbortSignal for run-level cancellation. */
-  readonly signal?: AbortSignal
-  /** Optional check result cache. See ISSUE-0018. */
-  readonly cache?: CheckResultCache
-  /** Optional event bus for lifecycle telemetry. See ISSUE-0021, ADR-0016. */
-  readonly eventBus?: EventBus
+  signal?: AbortSignal | undefined
+  /** Optional check result cache. */
+  cache?: CheckResultCache | undefined
+  /** Optional event bus for lifecycle telemetry. */
+  eventBus?: EventBus | undefined
 }
 
 /**
@@ -71,8 +70,8 @@ export interface RunRecipeOptions {
  * filter. When no filter is provided, all recipes run.
  */
 function recipeMatchesTags(
-  recipeTags: readonly string[] | undefined,
-  selected: readonly string[] | undefined,
+  recipeTags: string[] | undefined,
+  selected: string[] | undefined,
 ): boolean {
   if (!selected || selected.length === 0) return true
   if (!recipeTags || recipeTags.length === 0) return false
@@ -277,10 +276,10 @@ async function executeHost(
     return summary
   }
 
-  // --- Probe host facts (ISSUE-0032) ---
+  // --- Probe host facts ---
   const facts = await probeHostFacts(connection)
 
-  // --- Per-host cancellation controller (ISSUE-0030) ---
+  // --- Per-host cancellation controller ---
   const hostController = new AbortController()
   let hostTimedOut = false
   const hostTimeoutId =

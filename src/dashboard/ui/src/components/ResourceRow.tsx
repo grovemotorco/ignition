@@ -15,6 +15,7 @@ const LINE_HEIGHT = 20
 const OVERSCAN_LINES = 40
 const OUTPUT_MAX_HEIGHT = 300
 
+/** Render one resource row, including retry history and streamed output. */
 export function ResourceRow({ resource }: { resource: ResourceState }) {
   const lines = useMemo(() => {
     const pending: ResourceState["output"] = []

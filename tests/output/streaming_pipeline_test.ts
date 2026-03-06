@@ -6,8 +6,6 @@ import { test, expect } from "bun:test"
  * through executeResource (verbose mode) → EventBus → dashboard state reducer.
  * Verifies that output produced by a resource's exec() calls flows end-to-end
  * into the UI state model.
- *
- * ISSUE-0037
  */
 
 import { ExecutionContextImpl } from "../../src/core/context.ts"

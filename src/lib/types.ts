@@ -5,51 +5,51 @@ import type { HostKeyPolicy } from "../ssh/types.ts"
 export type OutputFormat = "pretty" | "json" | "minimal"
 
 /** Options specific to run and check commands. */
-export interface RunCheckOptions {
-  readonly inventory?: string
-  readonly trace?: boolean
-  readonly format?: OutputFormat
-  readonly errorMode?: ErrorMode
-  readonly tags: readonly string[]
-  readonly vars: Record<string, unknown>
-  readonly confirm?: boolean
-  readonly hostKeyPolicy?: HostKeyPolicy
-  readonly identity?: string
-  readonly multiplex?: boolean
-  readonly parallelism?: number
-  readonly hostTimeout?: number
-  readonly resourceTimeout?: number
-  readonly retries?: number
-  readonly retryDelay?: number
-  readonly cache?: boolean
-  readonly cacheTtl?: number
-  readonly cacheClear?: boolean
-  readonly dashboardHost?: string
-  readonly dashboardPort?: number
-  readonly logDir?: string
+export type RunCheckOptions = {
+  inventory?: string | undefined
+  trace?: boolean | undefined
+  format?: OutputFormat | undefined
+  errorMode?: ErrorMode | undefined
+  tags: string[]
+  vars: Record<string, unknown>
+  confirm?: boolean | undefined
+  hostKeyPolicy?: HostKeyPolicy | undefined
+  identity?: string | undefined
+  multiplex?: boolean | undefined
+  parallelism?: number | undefined
+  hostTimeout?: number | undefined
+  resourceTimeout?: number | undefined
+  retries?: number | undefined
+  retryDelay?: number | undefined
+  cache?: boolean | undefined
+  cacheTtl?: number | undefined
+  cacheClear?: boolean | undefined
+  dashboardHost?: string | undefined
+  dashboardPort?: number | undefined
+  logDir?: string | undefined
 }
 
 /** Fully resolved options after merging CLI flags, config file, and defaults. */
-export interface ResolvedRunCheckOptions {
-  readonly inventory?: string
-  readonly trace: boolean
-  readonly format: OutputFormat
-  readonly errorMode: ErrorMode
-  readonly tags: readonly string[]
-  readonly vars: Record<string, unknown>
-  readonly confirm: boolean
-  readonly hostKeyPolicy: HostKeyPolicy
-  readonly identity?: string
-  readonly multiplex: boolean
-  readonly parallelism: number
-  readonly hostTimeout: number
-  readonly resourceTimeout: number
-  readonly retries: number
-  readonly retryDelay: number
-  readonly cache: boolean
-  readonly cacheTtl: number
-  readonly cacheClear: boolean
-  readonly dashboardHost: string
-  readonly dashboardPort: number
-  readonly logDir?: string
+export type ResolvedRunCheckOptions = {
+  inventory?: string | undefined
+  trace: boolean
+  format: OutputFormat
+  errorMode: ErrorMode
+  tags: string[]
+  vars: Record<string, unknown>
+  confirm: boolean
+  hostKeyPolicy: HostKeyPolicy
+  identity?: string | undefined
+  multiplex: boolean
+  parallelism: number
+  hostTimeout: number
+  resourceTimeout: number
+  retries: number
+  retryDelay: number
+  cache: boolean
+  cacheTtl: number
+  cacheClear: boolean
+  dashboardHost: string
+  dashboardPort: number
+  logDir?: string | undefined
 }

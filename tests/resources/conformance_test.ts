@@ -2,9 +2,9 @@ import { test, expect } from "bun:test"
 /**
  * Idempotence conformance tests for all built-in resources.
  *
- * Exercises the contract defined in ADR-0012 / ISSUE-0017 via the shared
- * conformance harness. Each resource gets "not-in-desired-state" and
- * "in-desired-state" (post-apply convergence) scenarios where applicable.
+ * Exercises the shared conformance harness against every built-in resource.
+ * Each resource gets "not-in-desired-state" and "in-desired-state"
+ * (post-apply convergence) scenarios where applicable.
  */
 
 import { ExecutionContextImpl } from "../../src/core/context.ts"

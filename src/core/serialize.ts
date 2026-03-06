@@ -3,7 +3,7 @@
  *
  * Provides deterministic JSON serialization (sorted keys) and deep-clone
  * redaction for preventing sensitive data leaks through event pipelines,
- * reporters, cache keys, and JSON output. See ISSUE-0033.
+ * reporters, cache keys, and JSON output.
  */
 
 // ---------------------------------------------------------------------------
@@ -18,11 +18,11 @@
  * management lands, the inventory loader populates this from config
  * and threads it through the execution context.
  */
-export interface RedactionPolicy {
+export type RedactionPolicy = {
   /** Glob-style field paths to redact (e.g. '*.password', 'vars.db_*'). */
-  readonly patterns: readonly string[]
+  patterns: string[]
   /** Marker to replace redacted values with. Default: '[REDACTED]'. */
-  readonly marker?: string
+  marker?: string | undefined
 }
 
 /** Default redaction marker. */
@@ -185,12 +185,7 @@ function compilePattern(pattern: string): PatternMatcher {
 /**
  * Recursive segment matcher supporting `*`, `**`, and intra-segment wildcards.
  */
-function matchSegments(
-  pattern: readonly string[],
-  pi: number,
-  path: readonly string[],
-  fi: number,
-): boolean {
+function matchSegments(pattern: string[], pi: number, path: string[], fi: number): boolean {
   // Both exhausted — match
   if (pi === pattern.length && fi === path.length) {
     return true

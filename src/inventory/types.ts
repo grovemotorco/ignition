@@ -2,9 +2,9 @@
  * Inventory type definitions.
  *
  * Zod schemas are the source of truth — TypeScript types are derived via
- * `z.infer`. The inventory maps target names to concrete host connection
+ * `z.output<>`. The inventory maps target names to concrete host connection
  * details and variables. TypeScript inventory files default-export an
- * `Inventory` object. See ADR-0007 and ISSUE-0010.
+ * `Inventory` object.
  */
 
 import { z } from "incur"
@@ -16,7 +16,8 @@ export const InventoryDefaultsSchema = z.object({
   privateKey: z.string().optional(),
 })
 
-export type InventoryDefaults = z.infer<typeof InventoryDefaultsSchema>
+/** Parsed connection defaults applied to all hosts unless overridden. */
+export type InventoryDefaults = z.output<typeof InventoryDefaultsSchema>
 
 /** A host entry in the inventory. */
 export const HostSchema = z.object({
@@ -27,7 +28,8 @@ export const HostSchema = z.object({
   vars: z.record(z.string(), z.unknown()).optional(),
 })
 
-export type Host = z.infer<typeof HostSchema>
+/** Parsed host entry in the inventory. */
+export type Host = z.output<typeof HostSchema>
 
 /** A group of hosts with shared variables. */
 export const HostGroupSchema = z.object({
@@ -35,7 +37,8 @@ export const HostGroupSchema = z.object({
   vars: z.record(z.string(), z.unknown()).optional(),
 })
 
-export type HostGroup = z.infer<typeof HostGroupSchema>
+/** Parsed host group with shared variables. */
+export type HostGroup = z.output<typeof HostGroupSchema>
 
 /**
  * Top-level inventory structure.
@@ -50,7 +53,8 @@ export const InventorySchema = z.object({
   hosts: z.record(z.string(), HostSchema).optional(),
 })
 
-export type Inventory = z.infer<typeof InventorySchema>
+/** Parsed top-level inventory structure. */
+export type Inventory = z.output<typeof InventorySchema>
 
 /**
  * A fully resolved host ready for SSH connection.
@@ -66,7 +70,8 @@ export const ResolvedHostSchema = z.object({
   vars: z.record(z.string(), z.unknown()),
 })
 
-export type ResolvedHost = z.infer<typeof ResolvedHostSchema>
+/** Parsed host after defaults and variables have been resolved. */
+export type ResolvedHost = z.output<typeof ResolvedHostSchema>
 
 /**
  * The shape of a loaded inventory module after dynamic import.
@@ -76,4 +81,5 @@ export const InventoryModuleSchema = z.object({
   path: z.string(),
 })
 
-export type InventoryModule = z.infer<typeof InventoryModuleSchema>
+/** Parsed inventory module returned by `loadInventory()`. */
+export type InventoryModule = z.output<typeof InventoryModuleSchema>

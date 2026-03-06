@@ -59,7 +59,7 @@ function noopReporter(): Reporter {
   }
 }
 
-interface ReporterCalls {
+type ReporterCalls = {
   starts: Array<{ type: string; name: string }>
   ends: ResourceResult[]
 }
@@ -249,7 +249,7 @@ test("passes reporter to ExecutionContext", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Host facts (ISSUE-0032)
+// Host facts
 // ---------------------------------------------------------------------------
 
 test("probes host facts and passes them into ExecutionContext", async () => {
@@ -804,7 +804,7 @@ test("close error does not prevent next host", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — bounded parallelism (ISSUE-0015)
+// Concurrency — bounded parallelism
 // ---------------------------------------------------------------------------
 
 test("parallelism=1 runs hosts sequentially", async () => {
@@ -952,7 +952,7 @@ test("per-host resource execution remains sequential", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — fail-fast cancellation (ISSUE-0015)
+// Concurrency — fail-fast cancellation
 // ---------------------------------------------------------------------------
 
 test("fail-fast cancels queued hosts after connection failure", async () => {
@@ -1039,7 +1039,7 @@ test("fail-fast cancels active sibling hosts on terminal failure", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — fail-at-end continues all hosts (ISSUE-0015)
+// Concurrency — fail-at-end continues all hosts
 // ---------------------------------------------------------------------------
 
 test("fail-at-end continues all hosts despite failures", async () => {
@@ -1080,7 +1080,7 @@ test("fail-at-end continues all hosts despite failures", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — ignore mode continues all hosts (ISSUE-0015)
+// Concurrency — ignore mode continues all hosts
 // ---------------------------------------------------------------------------
 
 test("ignore mode continues all hosts and marks failures", async () => {
@@ -1116,7 +1116,7 @@ test("ignore mode continues all hosts and marks failures", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — host-level timeout (ISSUE-0015)
+// Concurrency — host-level timeout
 // ---------------------------------------------------------------------------
 
 test("host timeout cancels slow host", async () => {
@@ -1161,7 +1161,7 @@ test("host timeout does not affect fast hosts", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — run-level cancellation via AbortSignal (ISSUE-0015)
+// Concurrency — run-level cancellation via AbortSignal
 // ---------------------------------------------------------------------------
 
 test("external AbortSignal cancels the run", async () => {
@@ -1221,7 +1221,7 @@ test("pre-aborted signal cancels all hosts immediately", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — connections cleanup (ISSUE-0015)
+// Concurrency — connections cleanup
 // ---------------------------------------------------------------------------
 
 test("all connections closed even when hosts are cancelled", async () => {
@@ -1250,7 +1250,7 @@ test("all connections closed even when hosts are cancelled", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Concurrency — default parallelism (ISSUE-0015)
+// Concurrency — default parallelism
 // ---------------------------------------------------------------------------
 
 test("uses default parallelism when concurrency not specified", async () => {
@@ -1276,7 +1276,7 @@ test("uses default parallelism when concurrency not specified", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Cancellation plumbing — signal propagation (ISSUE-0030)
+// Cancellation plumbing — signal propagation
 // ---------------------------------------------------------------------------
 
 test("signal wired into ExecutionContext for each host", async () => {

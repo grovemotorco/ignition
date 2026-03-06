@@ -12,12 +12,12 @@
 
 import type { EventListener, LifecycleEvent } from "../output/events.ts"
 
-interface WebSocketLike {
-  readonly readyState: number
+type WebSocketLike = {
+  readyState: number
   addEventListener(
     type: "open" | "error" | "close",
     listener: (event: Event | ErrorEvent) => void,
-    opts?: { once?: boolean },
+    opts?: { once?: boolean | undefined },
   ): void
   send(data: string): void
   close(): void
@@ -31,9 +31,9 @@ const WS_CLOSING = 2
 const WS_CLOSED = 3
 
 /** Testability seam for injecting custom network primitives. */
-export interface DashboardClientDeps {
-  readonly createWebSocket: WebSocketFactory
-  readonly fetch: FetchLike
+export type DashboardClientDeps = {
+  createWebSocket: WebSocketFactory
+  fetch: FetchLike
 }
 
 /**
@@ -50,21 +50,21 @@ export interface DashboardClientDeps {
  * ```
  */
 export class DashboardClient {
-  readonly #url: string
+  #url: string
   #ws: WebSocketLike | null = null
   #deps: DashboardClientDeps
 
-  constructor(url: string, deps?: Partial<DashboardClientDeps>) {
+  constructor(url: string, deps: Partial<DashboardClientDeps> = {}) {
     this.#url = url
     this.#deps = {
       createWebSocket:
-        deps?.createWebSocket ?? ((websocketUrl: string) => new WebSocket(websocketUrl)),
-      fetch: deps?.fetch ?? fetch,
+        deps.createWebSocket ?? ((websocketUrl: string) => new WebSocket(websocketUrl)),
+      fetch: deps.fetch ?? fetch,
     }
   }
 
   /** EventListener-compatible handler. Register with EventBus.on(). */
-  readonly listener: EventListener = (event: LifecycleEvent): void => {
+  listener: EventListener = (event: LifecycleEvent): void => {
     if (this.#ws && this.#ws.readyState === WS_OPEN) {
       this.#ws.send(JSON.stringify(event))
     }

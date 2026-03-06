@@ -6,11 +6,11 @@ type EventName = "open" | "error" | "close"
 type EventListener = (event: Event | ErrorEvent) => void
 
 class FakeWebSocket {
-  readonly url: string
+  url: string
   readyState = 0
-  readonly sent: string[] = []
+  sent: string[] = []
   closeCalls = 0
-  readonly #listeners = new Map<EventName, Array<{ fn: EventListener; once: boolean }>>()
+  #listeners = new Map<EventName, Array<{ fn: EventListener; once: boolean }>>()
 
   constructor(url: string) {
     this.url = url

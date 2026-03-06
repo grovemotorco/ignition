@@ -3,7 +3,6 @@
  *
  * `check()` tests whether the directory exists with the desired attributes.
  * `apply()` creates/removes the directory and sets ownership/permissions.
- * See ISSUE-0008.
  */
 
 import type {
@@ -16,25 +15,25 @@ import type {
 import { executeResource, requireCapability } from "../core/resource.ts"
 
 /** Input options for the directory resource. */
-export interface DirectoryInput {
+export type DirectoryInput = {
   /** Absolute path to the directory. */
-  readonly path: string
+  path: string
   /** File mode (e.g. "0755"). */
-  readonly mode?: string
+  mode?: string | undefined
   /** Owner user. */
-  readonly owner?: string
+  owner?: string | undefined
   /** Owner group. */
-  readonly group?: string
+  group?: string | undefined
   /** Whether the directory should exist. Default: 'present'. */
-  readonly state?: "present" | "absent"
+  state?: "present" | "absent" | undefined
   /** Use mkdir -p for recursive creation. Default: true. */
-  readonly recursive?: boolean
+  recursive?: boolean | undefined
 }
 
 /** Output of a successful directory resource. */
-export interface DirectoryOutput {
-  readonly path: string
-  readonly changed: boolean
+export type DirectoryOutput = {
+  path: string
+  changed: boolean
 }
 
 /** Quote a string for safe shell interpolation. */
@@ -42,7 +41,7 @@ function shellQuote(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`
 }
 
-/** Schema for the directory resource. See ISSUE-0028. */
+/** Schema for the directory resource. */
 export const directorySchema: ResourceSchema = {
   description: "Manage directories — create, remove, and set ownership/permissions.",
   whenToUse: [

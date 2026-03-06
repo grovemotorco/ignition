@@ -3,8 +3,7 @@
  *
  * Stores previous `check()` outputs to reduce repeated SSH work on stable hosts
  * in check mode. Apply mode always performs a live check; cache is advisory for
- * check mode only. Preserves ADR-0008 (no authoritative persistent state).
- * See ADR-0013, ISSUE-0018.
+ * check mode only.
  */
 
 import type { CacheLookup, CheckResult, CheckResultCache } from "./types.ts"
@@ -14,7 +13,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 /** Default TTL for cache entries: 10 minutes. */
 export const DEFAULT_CACHE_TTL_MS = 10 * 60 * 1_000
 /** Default on-disk cache file path (workspace-local). */
-export const DEFAULT_CACHE_FILE: string = join(process.cwd(), ".ignition", "check-cache.json")
+export const DEFAULT_CACHE_FILE = join(process.cwd(), ".ignition", "check-cache.json")
 
 /** Tool version included in cache keys to invalidate on upgrade. */
 const CACHE_VERSION = "0.1.0"
@@ -24,19 +23,19 @@ const CACHE_VERSION = "0.1.0"
 // ---------------------------------------------------------------------------
 
 /** Components used to build a cache key. */
-export interface CacheKeyParts {
+export type CacheKeyParts = {
   /** SSH hostname or IP. */
-  readonly hostname: string
+  hostname: string
   /** SSH port. */
-  readonly port: number
+  port: number
   /** SSH user. */
-  readonly user: string
+  user: string
   /** Resource type identifier. */
-  readonly resourceType: string
+  resourceType: string
   /** Resource display name. */
-  readonly resourceName: string
+  resourceName: string
   /** Normalized resource input (JSON-serialized). */
-  readonly inputJson: string
+  inputJson: string
 }
 
 /**
@@ -62,19 +61,19 @@ export function buildCacheKey(parts: CacheKeyParts): string {
 // ---------------------------------------------------------------------------
 
 /** A stored cache entry with metadata. */
-export interface CacheEntry {
+export type CacheEntry = {
   /** The cached check result. */
-  readonly result: CheckResult<unknown>
+  result: CheckResult<unknown>
   /** Timestamp when the entry was stored (ms since epoch). */
-  readonly storedAt: number
+  storedAt: number
   /** Cache key for this entry. */
-  readonly key: string
+  key: string
 }
 
 /** Configuration for the cache. */
-export interface CacheOptions {
+export type CacheOptions = {
   /** TTL in milliseconds. Entries older than this are considered expired. */
-  readonly ttlMs: number
+  ttlMs: number
 }
 
 // ---------------------------------------------------------------------------
@@ -89,11 +88,11 @@ export interface CacheOptions {
  * persistence can be layered on top if needed.
  */
 export class MemoryCheckResultCache implements CheckResultCache {
-  readonly #entries = new Map<string, CacheEntry>()
-  readonly #ttlMs: number
+  #entries = new Map<string, CacheEntry>()
+  #ttlMs: number
 
-  constructor(opts?: Partial<CacheOptions>) {
-    this.#ttlMs = opts?.ttlMs ?? DEFAULT_CACHE_TTL_MS
+  constructor(opts: Partial<CacheOptions> = {}) {
+    this.#ttlMs = opts.ttlMs ?? DEFAULT_CACHE_TTL_MS
   }
 
   get(key: string): CacheLookup {
@@ -141,14 +140,14 @@ export class MemoryCheckResultCache implements CheckResultCache {
 // ---------------------------------------------------------------------------
 
 /** Configuration for file-backed cache. */
-export interface FileCacheOptions extends CacheOptions {
+export type FileCacheOptions = CacheOptions & {
   /** Absolute or relative path to the JSON cache file. */
-  readonly path: string
+  path: string
 }
 
-interface SerializedCacheFile {
-  readonly version: string
-  readonly entries: CacheEntry[]
+type SerializedCacheFile = {
+  version: string
+  entries: CacheEntry[]
 }
 
 /**
@@ -158,13 +157,13 @@ interface SerializedCacheFile {
  * Entries are non-authoritative and TTL-validated exactly like memory cache.
  */
 export class FileCheckResultCache implements CheckResultCache {
-  readonly #entries = new Map<string, CacheEntry>()
-  readonly #ttlMs: number
-  readonly #path: string
+  #entries = new Map<string, CacheEntry>()
+  #ttlMs: number
+  #path: string
 
-  constructor(opts?: Partial<FileCacheOptions>) {
-    this.#ttlMs = opts?.ttlMs ?? DEFAULT_CACHE_TTL_MS
-    this.#path = opts?.path ?? DEFAULT_CACHE_FILE
+  constructor(opts: Partial<FileCacheOptions> = {}) {
+    this.#ttlMs = opts.ttlMs ?? DEFAULT_CACHE_TTL_MS
+    this.#path = opts.path ?? DEFAULT_CACHE_FILE
     this.#load()
   }
 

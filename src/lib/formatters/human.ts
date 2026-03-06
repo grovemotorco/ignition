@@ -2,19 +2,19 @@
  * Human-readable formatting utilities.
  *
  * Table formatting, column alignment, and relative time display
- * for CLI output. See ISSUE-0043.
+ * for CLI output.
  */
 
 import { stripAnsi } from "../colors.ts"
 
 /** A column definition for table formatting. */
-export interface Column {
+export type Column = {
   /** Column header label. */
-  readonly label: string
+  label: string
   /** Alignment within the column. Defaults to "left". */
-  readonly align?: "left" | "right"
+  align?: "left" | "right" | undefined
   /** Minimum column width (in characters). */
-  readonly minWidth?: number
+  minWidth?: number | undefined
 }
 
 /**
@@ -23,11 +23,7 @@ export interface Column {
  * Each row is an array of cell values matching the column definitions.
  * Columns are separated by the given gap (default 2 spaces).
  */
-export function formatTable(
-  columns: readonly Column[],
-  rows: readonly string[][],
-  gap = 2,
-): string {
+export function formatTable(columns: Column[], rows: string[][], gap = 2): string {
   if (rows.length === 0) return ""
 
   const gapStr = " ".repeat(gap)

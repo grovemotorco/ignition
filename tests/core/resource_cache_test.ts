@@ -47,7 +47,7 @@ function stubHost(): HostContext {
   }
 }
 
-interface ReporterCalls {
+type ReporterCalls = {
   starts: Array<{ type: string; name: string }>
   ends: ResourceResult[]
 }

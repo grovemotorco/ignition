@@ -52,6 +52,7 @@ export const palette = {
   tealDeep: "#4A9A8A",
 } as const
 
+/** Semantic design tokens derived from the generated palette. */
 export const tokens = {
   surface: {
     bg: "#1E2A28",
@@ -115,5 +116,7 @@ export const tokens = {
   },
 } as const
 
+/** Named palette colors available to the theme system. */
 export type PaletteColor = keyof typeof palette
+/** Top-level token categories exposed by the theme system. */
 export type TokenCategory = keyof typeof tokens

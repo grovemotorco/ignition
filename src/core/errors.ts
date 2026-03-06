@@ -2,7 +2,7 @@
  * Tagged error hierarchy for Ignition.
  *
  * Every error carries a `tag` discriminant for programmatic matching and a
- * structured `context` bag for diagnostic details. See ADR-0005.
+ * structured `context` bag for diagnostic details.
  */
 
 /** Discriminant tags for the error hierarchy. */
@@ -17,8 +17,8 @@ export type IgnitionErrorTag =
 
 /** Base class for all Ignition errors. */
 export class IgnitionError extends Error {
-  readonly tag: IgnitionErrorTag
-  readonly context: Record<string, unknown>
+  tag: IgnitionErrorTag
+  context: Record<string, unknown>
 
   constructor(
     tag: IgnitionErrorTag,
@@ -42,9 +42,9 @@ export class SSHConnectionError extends IgnitionError {
 
 /** An SSH command returned a non-zero exit code. */
 export class SSHCommandError extends IgnitionError {
-  readonly exitCode: number
-  readonly stdout: string
-  readonly stderr: string
+  exitCode: number
+  stdout: string
+  stderr: string
 
   constructor(command: string, exitCode: number, stdout: string, stderr: string, cause?: Error) {
     super(
@@ -93,14 +93,14 @@ export class InventoryError extends IgnitionError {
 }
 
 /**
- * A transport does not support a required capability. See ADR-0015, ISSUE-0020.
+ * A transport does not support a required capability.
  *
  * Thrown when a resource requires a capability (e.g. 'transfer') that the
  * current transport does not support.
  */
 export class CapabilityError extends IgnitionError {
   /** The capability that was required but not supported. */
-  readonly capability: string
+  capability: string
 
   constructor(capability: string, resourceType: string, message?: string, cause?: Error) {
     const msg =
@@ -116,8 +116,6 @@ export class CapabilityError extends IgnitionError {
  * Retryable: SSHConnectionError, TransferError (network-level issues).
  * Non-retryable: SSHCommandError (command exited non-zero — deterministic),
  *   ResourceError, RecipeLoadError, InventoryError, unknown errors.
- *
- * See ADR-0011, ISSUE-0016.
  */
 export function isRetryable(error: unknown): boolean {
   if (!(error instanceof IgnitionError)) return false

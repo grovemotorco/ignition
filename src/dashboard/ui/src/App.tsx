@@ -5,6 +5,7 @@ import { RunFooter } from "./components/RunFooter.tsx"
 import { ConnectionStatus } from "./components/ConnectionStatus.tsx"
 import { RunSidebar } from "./components/RunSidebar.tsx"
 
+/** Render the live dashboard application shell. */
 export default function App() {
   const { state, connected, selectRun } = useEventStream()
   const hasSidebar = state.runs.length > 1

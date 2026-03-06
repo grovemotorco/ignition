@@ -5,7 +5,7 @@
  * Provides the single source of truth for resource definitions, schemas,
  * and schema output generation. The `ResourceRegistry` class is the
  * extensible core; module-level helpers delegate to `defaultRegistry`
- * for backward compatibility. See ISSUE-0028, ISSUE-0034, ADR-0019.
+ * for backward compatibility.
  */
 
 import type {
@@ -39,17 +39,17 @@ export type BoundResourceFn<TInput = unknown, TOutput = unknown> = (
 /**
  * Collects resource definitions and generates bound resource functions
  * dynamically. Built-in resources register at module load; plugins
- * register at config time. See ISSUE-0034.
+ * register at config time.
  */
 export class ResourceRegistry {
-  private readonly _definitions = new Map<string, ResourceDefinition<any, any>>()
+  private _definitions = new Map<string, ResourceDefinition<unknown, unknown>>()
 
   /** Register a resource definition. Throws on duplicate type. */
   register<TInput, TOutput>(def: ResourceDefinition<TInput, TOutput>): void {
     if (this._definitions.has(def.type)) {
       throw new Error(`ResourceRegistry: duplicate type "${def.type}"`)
     }
-    this._definitions.set(def.type, def)
+    this._definitions.set(def.type, def as ResourceDefinition<unknown, unknown>)
   }
 
   /** Get a definition by type name. */
@@ -58,12 +58,12 @@ export class ResourceRegistry {
   }
 
   /** List all registered type names. */
-  types(): readonly string[] {
+  types(): string[] {
     return [...this._definitions.keys()]
   }
 
   /** All registered definitions (for schema generation). */
-  definitions(): ReadonlyArray<ResourceDefinition<unknown, unknown>> {
+  definitions(): ResourceDefinition<unknown, unknown>[] {
     return [...this._definitions.values()]
   }
 
@@ -95,17 +95,17 @@ defaultRegistry.register(directoryDefinition)
 // ---------------------------------------------------------------------------
 
 /** Return all registered resource definitions. */
-export function getAllDefinitions(): ReadonlyMap<string, ResourceDefinition<any, any>> {
-  const map = new Map<string, ResourceDefinition<any, any>>()
+export function getAllDefinitions(): ReadonlyMap<string, ResourceDefinition<unknown, unknown>> {
+  const map = new Map<string, ResourceDefinition<unknown, unknown>>()
   for (const def of defaultRegistry.definitions()) {
-    map.set(def.type, def as ResourceDefinition<any, any>)
+    map.set(def.type, def)
   }
   return map
 }
 
 /** Return a single resource definition by type, or undefined if not found. */
-export function getDefinition(type: string): ResourceDefinition<any, any> | undefined {
-  return defaultRegistry.get(type) as ResourceDefinition<any, any> | undefined
+export function getDefinition(type: string): ResourceDefinition<unknown, unknown> | undefined {
+  return defaultRegistry.get(type)
 }
 
 /** Return all resource type names in registry order. */
