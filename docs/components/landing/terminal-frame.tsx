@@ -19,7 +19,7 @@ export function TerminalFrame({
         <div className="size-2.5 rounded-full bg-accent-teal" />
         <span className="ml-2 text-xs text-terminal-dim font-mono">{title}</span>
       </div>
-      <div className="bg-terminal-bg text-terminal-fg font-mono text-[13px] leading-[1.6] p-4 overflow-x-auto">
+      <div className="syntax-dark bg-terminal-bg text-terminal-fg font-mono text-[13px] leading-[1.6] p-4 overflow-x-auto">
         {children}
       </div>
     </div>

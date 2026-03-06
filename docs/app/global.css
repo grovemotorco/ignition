@@ -92,8 +92,43 @@
 
 :root {
   --frame-border: rgba(240, 228, 208, 0.16);
+
+  --color-syntax-keyword: #a43820;
+  --color-syntax-string: #64732d;
+  --color-syntax-function: #2a7a6e;
+  --color-syntax-comment: #6e9175;
+  --color-syntax-type: #836829;
+  --color-syntax-variable: #2a3a38;
+  --color-syntax-literal: #b84a2a;
+  --color-syntax-property: #467464;
+  --color-syntax-punctuation: #56745b;
+  --color-syntax-operator: #56745b;
 }
 
 .dark {
   --frame-border: rgba(240, 228, 208, 0.11);
+
+  --color-syntax-keyword: #c44d2b;
+  --color-syntax-string: #d4b868;
+  --color-syntax-function: #5aafa0;
+  --color-syntax-comment: #6a8a70;
+  --color-syntax-type: #c8a050;
+  --color-syntax-variable: #e8dcca;
+  --color-syntax-literal: #d4603a;
+  --color-syntax-property: #8cbfb0;
+  --color-syntax-punctuation: #7a9a80;
+  --color-syntax-operator: #8aaa90;
+}
+
+.syntax-dark {
+  --color-syntax-keyword: #c44d2b;
+  --color-syntax-string: #d4b868;
+  --color-syntax-function: #5aafa0;
+  --color-syntax-comment: #6a8a70;
+  --color-syntax-type: #c8a050;
+  --color-syntax-variable: #e8dcca;
+  --color-syntax-literal: #d4603a;
+  --color-syntax-property: #8cbfb0;
+  --color-syntax-punctuation: #7a9a80;
+  --color-syntax-operator: #8aaa90;
 }
