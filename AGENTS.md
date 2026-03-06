@@ -48,3 +48,11 @@
   - commands run locally (for example `bun run verify`),
   - screenshots/GIFs for dashboard or docs UI changes.
 - Ensure CI passes (`typecheck`, `lint`, `fmt:check`, `test`, dashboard build, docs build) before merge.
+
+## Cursor Cloud specific instructions
+
+- **Runtime**: Bun (installed to `~/.bun/bin/bun`). The update script runs `bun install` automatically.
+- **Services overview**: See "Build, Test, and Development Commands" above for all standard commands. No databases or external services are required.
+- **Dashboard UI dev server**: `bun run dev:ui` starts Vite on port 5173. It shows "Reconnecting..." because the dashboard WebSocket backend (`bun run dev:dashboard`, port 9090) is not running — this is expected when only the UI is being developed.
+- **Docs dev server**: `bun run docs:dev` starts Next.js on port 3000.
+- **Integration/E2E tests are opt-in**: They require `IGNITION_RUN_SANDBOX_TESTS=1` plus a `DENO_DEPLOY_TOKEN`, or Docker for local sandbox tests (`bun run sandbox:docker`). Unit tests (`bun run test`) need no external dependencies.
