@@ -3,6 +3,7 @@ import { resolve } from "node:path"
 import { loadInventory } from "../../inventory/loader.ts"
 import { InventorySchema } from "../../inventory/types.ts"
 
+/** CLI command that loads and prints an inventory file. */
 export const inventory = Cli.create("inventory", {
   description: "Display hosts from an inventory file",
   args: z.object({

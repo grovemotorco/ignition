@@ -2,10 +2,10 @@
  * Resource factory — createResources(ctx).
  *
  * Returns all built-in resource functions bound to an ExecutionContext.
- * Recipes destructure these and chain with `await`. See ISSUE-0008.
+ * Recipes destructure these and chain with `await`.
  *
  * Optionally accepts a custom `ResourceRegistry` to support plugin
- * resources alongside built-ins. See ISSUE-0034.
+ * resources alongside built-ins.
  */
 
 import type { ExecutionContext, ResourceCallMeta, ResourceResult } from "../core/types.ts"
@@ -22,7 +22,7 @@ import { createDirectory } from "./directory.ts"
 import { defaultRegistry, type ResourceRegistry } from "../core/registry.ts"
 
 /** Return type of `createResources()`. */
-export interface BoundResources {
+export type BoundResources = {
   exec: (input: ExecInput, meta?: ResourceCallMeta) => Promise<ResourceResult<ExecOutput>>
   file: (input: FileInput, meta?: ResourceCallMeta) => Promise<ResourceResult<FileOutput>>
   apt: (input: AptInput, meta?: ResourceCallMeta) => Promise<ResourceResult<AptOutput>>
@@ -39,7 +39,7 @@ export interface BoundResources {
  * When a custom `registry` is provided, additional resources from that
  * registry are merged into the returned object alongside the built-in
  * typed resources. Built-in resources always use their strongly-typed
- * factory functions regardless of the registry. See ISSUE-0034.
+ * factory functions regardless of the registry.
  *
  * Usage in recipes:
  * ```ts

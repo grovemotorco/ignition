@@ -3,7 +3,6 @@
  *
  * Loads `ignition.config.ts` from the project root via dynamic import
  * and merges config values with CLI flags (CLI always wins).
- * See ISSUE-0043.
  */
 
 import { resolve } from "node:path"
@@ -17,9 +16,9 @@ import type { OutputFormat, ResolvedRunCheckOptions, RunCheckOptions } from "./t
 const CONFIG_FILENAME = "ignition.config.ts"
 
 /** Valid values for enum-typed config fields. */
-const VALID_FORMATS: readonly string[] = ["pretty", "json", "minimal"]
-const VALID_ERROR_MODES: readonly string[] = ["fail-fast", "fail-at-end", "ignore"]
-const VALID_HOST_KEY_POLICIES: readonly string[] = ["strict", "accept-new", "off"]
+const VALID_FORMATS: string[] = ["pretty", "json", "minimal"]
+const VALID_ERROR_MODES: string[] = ["fail-fast", "fail-at-end", "ignore"]
+const VALID_HOST_KEY_POLICIES: string[] = ["strict", "accept-new", "off"]
 
 /**
  * Configuration file shape for `ignition.config.ts`.
@@ -39,43 +38,43 @@ const VALID_HOST_KEY_POLICIES: readonly string[] = ["strict", "accept-new", "off
  * export default config
  * ```
  */
-export interface IgnitionConfig {
+export type IgnitionConfig = {
   /** Default inventory file path. */
-  inventory?: string
+  inventory?: string | undefined
   /** Default output format. */
-  format?: OutputFormat
+  format?: OutputFormat | undefined
   /** Default error handling mode. */
-  errorMode?: ErrorMode
+  errorMode?: ErrorMode | undefined
   /** Maximum concurrent hosts. */
-  parallelism?: number
+  parallelism?: number | undefined
   /** Per-host timeout in ms (0 = unlimited). */
-  hostTimeout?: number
+  hostTimeout?: number | undefined
   /** Per-resource timeout in ms (0 = unlimited). */
-  resourceTimeout?: number
+  resourceTimeout?: number | undefined
   /** Retry attempts for transient failures. */
-  retries?: number
+  retries?: number | undefined
   /** Initial retry backoff in ms. */
-  retryDelay?: number
+  retryDelay?: number | undefined
   /** Enable SSH connection multiplexing. */
-  multiplex?: boolean
+  multiplex?: boolean | undefined
   /** SSH host key verification policy. */
-  hostKeyPolicy?: HostKeyPolicy
+  hostKeyPolicy?: HostKeyPolicy | undefined
   /** Dashboard server hostname. */
-  dashboardHost?: string
+  dashboardHost?: string | undefined
   /** Dashboard server port. */
-  dashboardPort?: number
+  dashboardPort?: number | undefined
   /** NDJSON log output directory. */
-  logDir?: string
+  logDir?: string | undefined
   /** Enable trace output. */
-  trace?: boolean
+  trace?: boolean | undefined
   /** Enable check result caching. */
-  cache?: boolean
+  cache?: boolean | undefined
   /** Cache TTL in ms. */
-  cacheTtl?: number
+  cacheTtl?: number | undefined
   /** Clear cache before running. */
-  cacheClear?: boolean
+  cacheClear?: boolean | undefined
   /** Default variable overrides. */
-  vars?: Record<string, unknown>
+  vars?: Record<string, unknown> | undefined
 }
 
 /**

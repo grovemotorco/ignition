@@ -3,7 +3,7 @@
  *
  * Proves the SSH transport can connect, execute commands, and transfer files
  * on an ephemeral Linux microVM. Skips gracefully when DENO_DEPLOY_TOKEN is
- * not set. See ADR-0017, ISSUE-0022.
+ * not set.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"

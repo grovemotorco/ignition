@@ -165,7 +165,7 @@ test("InventoryError", () => {
 })
 
 // ---------------------------------------------------------------------------
-// ResourcePolicy type tests (ISSUE-0016)
+// ResourcePolicy type tests
 // ---------------------------------------------------------------------------
 
 test("ResourcePolicy shape compiles", () => {
@@ -219,7 +219,7 @@ test("ResourceResult with attempts metadata", () => {
 })
 
 // ---------------------------------------------------------------------------
-// isRetryable tests (ISSUE-0016)
+// isRetryable tests
 // ---------------------------------------------------------------------------
 
 test("isRetryable — SSHConnectionError is retryable", () => {
@@ -263,7 +263,7 @@ test("isRetryable — non-Error values are not retryable", () => {
 })
 
 // ---------------------------------------------------------------------------
-// ResourceDiff and toResourceDiff tests (ISSUE-0017)
+// ResourceDiff and toResourceDiff tests
 // ---------------------------------------------------------------------------
 
 test("ResourceDiff shape compiles", () => {

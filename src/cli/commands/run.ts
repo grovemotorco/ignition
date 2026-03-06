@@ -37,7 +37,7 @@ function parseVar(raw: string): [string, unknown] {
   return [key, value]
 }
 
-function buildVarsRecord(entries: readonly string[]): Record<string, unknown> {
+function buildVarsRecord(entries: string[]): Record<string, unknown> {
   const vars: Record<string, unknown> = {}
   for (const raw of entries) {
     const [key, value] = parseVar(raw)
@@ -75,13 +75,13 @@ function toHostContext(host: ResolvedHost): HostContext {
   }
 }
 
-interface ResolveResult {
+type ResolveResult = {
   hosts: ResolvedHost[]
   inventory: Inventory
 }
 
 async function resolveHosts(
-  targets: readonly string[],
+  targets: string[],
   inventoryFile?: string,
   trace?: boolean,
   logger: HumanLogger = disabledLogger,
@@ -127,6 +127,7 @@ async function resolveHosts(
 // Command definition
 // ---------------------------------------------------------------------------
 
+/** CLI command that runs a recipe against one or more resolved targets. */
 export const run = Cli.create("run", {
   description: "Apply a recipe to target hosts (use --check for dry-run)",
   vars: loggerVarsSchema,
@@ -337,7 +338,7 @@ export const run = Cli.create("run", {
         verbose: options.trace,
         reporter,
         vars: options.vars,
-        tags: options.tags,
+        tags: options.tags ? [...options.tags] : undefined,
         concurrency: {
           parallelism: options.parallelism,
           hostTimeout: options.hostTimeout,

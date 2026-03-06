@@ -21,6 +21,7 @@ function parseDashboardUrl(url: string): { url: string; hostname: string; port: 
   }
 }
 
+/** CLI command that starts the persistent local dashboard server. */
 export const dashboard = Cli.create("dashboard", {
   description: "Start persistent web dashboard",
   vars: loggerVarsSchema,

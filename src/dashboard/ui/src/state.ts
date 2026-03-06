@@ -10,81 +10,102 @@
 // Wire-format event types (mirrors src/output/events.ts JSON output)
 // ---------------------------------------------------------------------------
 
-interface CorrelationContext {
-  readonly runId: string
-  readonly hostId?: string
-  readonly resourceId?: string
-  readonly attempt?: number
+type CorrelationContext = {
+  runId: string
+  hostId?: string | undefined
+  resourceId?: string | undefined
+  attempt?: number | undefined
 }
 
-interface BaseEvent {
-  readonly type: string
-  readonly timestamp: string
-  readonly correlation: CorrelationContext
+type BaseEvent = {
+  type: string
+  timestamp: string
+  correlation: CorrelationContext
 }
 
-interface RunStartedEvent extends BaseEvent {
-  readonly type: "run_started"
-  readonly mode: "apply" | "check"
-  readonly errorMode: string
-  readonly hostCount: number
+type HostInfo = {
+  name: string
+  hostname: string
 }
 
-interface RunFinishedEvent extends BaseEvent {
-  readonly type: "run_finished"
-  readonly durationMs: number
-  readonly hasFailures: boolean
-  readonly hostCount: number
+type ResourceError = {
+  message: string
+  name: string
 }
 
-interface HostStartedEvent extends BaseEvent {
-  readonly type: "host_started"
-  readonly host: { name: string; hostname: string }
+type ResourceOutputLine = {
+  stream: "stdout" | "stderr"
+  text: string
 }
 
-interface HostFinishedEvent extends BaseEvent {
-  readonly type: "host_finished"
-  readonly host: { name: string; hostname: string }
-  readonly ok: number
-  readonly changed: number
-  readonly failed: number
-  readonly durationMs: number
-  readonly cancelled?: boolean
+type OutputPending = {
+  stdout: string
+  stderr: string
 }
 
-interface ResourceStartedEvent extends BaseEvent {
-  readonly type: "resource_started"
-  readonly resourceType: string
-  readonly resourceName: string
+type RunStartedEvent = BaseEvent & {
+  type: "run_started"
+  mode: "apply" | "check"
+  errorMode: string
+  hostCount: number
 }
 
-interface ResourceFinishedEvent extends BaseEvent {
-  readonly type: "resource_finished"
-  readonly resourceType: string
-  readonly resourceName: string
-  readonly status: string
-  readonly durationMs: number
-  readonly error?: { message: string; name: string }
-  readonly cacheHit?: boolean
+type RunFinishedEvent = BaseEvent & {
+  type: "run_finished"
+  durationMs: number
+  hasFailures: boolean
+  hostCount: number
 }
 
-interface ResourceRetryEvent extends BaseEvent {
-  readonly type: "resource_retry"
-  readonly resourceType: string
-  readonly resourceName: string
-  readonly phase: string
-  readonly error: { message: string; name: string }
-  readonly durationMs: number
+type HostStartedEvent = BaseEvent & {
+  type: "host_started"
+  host: HostInfo
 }
 
-interface ResourceOutputEvent extends BaseEvent {
-  readonly type: "resource_output"
-  readonly resourceType: string
-  readonly resourceName: string
-  readonly stream: "stdout" | "stderr"
-  readonly chunk: string
+type HostFinishedEvent = BaseEvent & {
+  type: "host_finished"
+  host: HostInfo
+  ok: number
+  changed: number
+  failed: number
+  durationMs: number
+  cancelled?: boolean | undefined
 }
 
+type ResourceStartedEvent = BaseEvent & {
+  type: "resource_started"
+  resourceType: string
+  resourceName: string
+}
+
+type ResourceFinishedEvent = BaseEvent & {
+  type: "resource_finished"
+  resourceType: string
+  resourceName: string
+  status: string
+  durationMs: number
+  error?: ResourceError | undefined
+  cacheHit?: boolean | undefined
+}
+
+type ResourceRetryEvent = BaseEvent & {
+  type: "resource_retry"
+  resourceType: string
+  resourceName: string
+  phase: string
+  error: ResourceError
+  durationMs: number
+}
+
+type ResourceOutputEvent = BaseEvent & {
+  type: "resource_output"
+  resourceType: string
+  resourceName: string
+  stream: "stdout" | "stderr"
+  chunk: string
+}
+
+/** Wire-format lifecycle events consumed by the dashboard UI. */
 export type LifecycleEvent =
   | RunStartedEvent
   | RunFinishedEvent
@@ -99,55 +120,95 @@ export type LifecycleEvent =
 // State model
 // ---------------------------------------------------------------------------
 
-export interface ResourceState {
+/** Dashboard state for one resource row. */
+export type ResourceState = {
+  /** Resource type label. */
   type: string
+  /** Resource display name. */
   name: string
+  /** Latest resource lifecycle status. */
   status: "running" | "ok" | "changed" | "failed"
-  durationMs?: number
-  error?: { message: string; name: string }
-  cacheHit?: boolean
+  /** Resource duration in milliseconds once finished. */
+  durationMs?: number | undefined
+  /** Structured resource error when the resource failed. */
+  error?: ResourceError | undefined
+  /** Whether the result came from the check cache. */
+  cacheHit?: boolean | undefined
+  /** Retry attempts recorded for this resource. */
   retries: Array<{ attempt: number; phase: string; error: string }>
-  output: Array<{ stream: "stdout" | "stderr"; text: string }>
-  outputPending: { stdout: string; stderr: string }
+  /** Flushed output lines collected so far. */
+  output: ResourceOutputLine[]
+  /** Buffered partial lines keyed by output stream. */
+  outputPending: OutputPending
 }
 
-export interface HostState {
-  host: { name: string; hostname: string }
+/** Dashboard state for one host card. */
+export type HostState = {
+  /** Host identity shown in the UI. */
+  host: HostInfo
+  /** Host lifecycle status. */
   status: "running" | "finished" | "cancelled"
+  /** Resource rows keyed by correlation id. */
   resources: Map<string, ResourceState>
+  /** Count of successful resources. */
   ok: number
+  /** Count of changed resources. */
   changed: number
+  /** Count of failed resources. */
   failed: number
-  durationMs?: number
-  cancelled?: boolean
+  /** Host duration in milliseconds once finished. */
+  durationMs?: number | undefined
+  /** Whether the host stopped early due to cancellation. */
+  cancelled?: boolean | undefined
 }
 
-export interface RunState {
+/** Detailed run state for the active dashboard view. */
+export type RunState = {
+  /** Correlation id for the run. */
   id: string
+  /** Execution mode used for the run. */
   mode: "apply" | "check"
+  /** Error handling mode used by the run. */
   errorMode: string
+  /** Number of targeted hosts. */
   hostCount: number
+  /** ISO timestamp for when the run started. */
   startedAt: string
-  finishedAt?: string
-  durationMs?: number
-  hasFailures?: boolean
+  /** ISO timestamp for when the run finished. */
+  finishedAt?: string | undefined
+  /** Run duration in milliseconds once finished. */
+  durationMs?: number | undefined
+  /** Whether any host failed in the run. */
+  hasFailures?: boolean | undefined
 }
 
-export interface RunSummary {
+/** Sidebar summary for a historical run. */
+export type RunSummary = {
+  /** Correlation id for the run. */
   id: string
+  /** Execution mode label shown in the sidebar. */
   mode: string
+  /** ISO timestamp for when the run started. */
   startedAt: string
-  finishedAt?: string
-  hasFailures?: boolean
+  /** ISO timestamp for when the run finished. */
+  finishedAt?: string | undefined
+  /** Whether the run finished with failures. */
+  hasFailures?: boolean | undefined
 }
 
-export interface DashboardState {
+/** Root client-side dashboard state tree. */
+export type DashboardState = {
+  /** Historical runs shown in the sidebar. */
   runs: RunSummary[]
+  /** Selected run id when browsing history. */
   activeRunId: string | null
+  /** Active run details for the main pane. */
   run: RunState | null
+  /** Host cards keyed by host correlation id. */
   hosts: Map<string, HostState>
 }
 
+/** Create the empty dashboard state used on first render and replay resets. */
 export function createInitialState(): DashboardState {
   return { runs: [], activeRunId: null, run: null, hosts: new Map() }
 }
@@ -189,17 +250,25 @@ function updateRunsFromLifecycleEvent(runs: RunSummary[], event: LifecycleEvent)
 // Actions (non-event actions dispatched by the UI)
 // ---------------------------------------------------------------------------
 
-export interface SelectRunAction {
-  readonly type: "SELECT_RUN"
-  readonly runId: string
-  readonly events: LifecycleEvent[]
+/** Action that replays a historical run into the detail pane. */
+export type SelectRunAction = {
+  /** Action discriminator. */
+  type: "SELECT_RUN"
+  /** Run id to activate. */
+  runId: string
+  /** Full event stream for the selected run. */
+  events: LifecycleEvent[]
 }
 
-export interface SetRunsAction {
-  readonly type: "SET_RUNS"
-  readonly runs: RunSummary[]
+/** Action that replaces the sidebar run history. */
+export type SetRunsAction = {
+  /** Action discriminator. */
+  type: "SET_RUNS"
+  /** Summaries to show in the run history sidebar. */
+  runs: RunSummary[]
 }
 
+/** All reducer actions supported by the dashboard UI. */
 export type DashboardAction = LifecycleEvent | SelectRunAction | SetRunsAction
 
 // ---------------------------------------------------------------------------
@@ -238,6 +307,7 @@ function flushPendingOutput(resource: ResourceState): ResourceState {
   return { ...resource, output, outputPending: { stdout: "", stderr: "" } }
 }
 
+/** Reduce lifecycle events and local UI actions into dashboard state. */
 export function eventReducer(state: DashboardState, action: DashboardAction): DashboardState {
   if (action.type === "SET_RUNS") {
     return { ...state, runs: action.runs }

@@ -3,8 +3,8 @@ import { test, expect } from "bun:test"
  * Resource idempotence conformance test harness.
  *
  * Provides reusable assertions that validate the idempotence contract
- * (ADR-0012, ISSUE-0017) for any ResourceDefinition. Each built-in
- * resource registers conformance tests by calling these helpers.
+ * for any ResourceDefinition. Each built-in resource registers
+ * conformance tests by calling these helpers.
  *
  * **Contract invariants verified**:
  * 1. `type` is a non-empty lowercase string.
@@ -79,7 +79,7 @@ export function assertValidCheckResult<TOutput>(result: CheckResult<TOutput>): v
 }
 
 /** Options for a conformance test scenario. */
-export interface ConformanceScenario<TInput, TOutput> {
+export type ConformanceScenario<TInput, TOutput> = {
   /** Human-readable scenario name. */
   name: string
   /** Resource definition under test. */
@@ -98,7 +98,7 @@ export interface ConformanceScenario<TInput, TOutput> {
    * Required when `convergent` is true. The mock should return responses consistent
    * with the resource being in its desired state.
    */
-  makePostApplyCtx?: () => ExecutionContext
+  makePostApplyCtx?: (() => ExecutionContext) | undefined
 }
 
 /**

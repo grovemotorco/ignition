@@ -2,7 +2,7 @@
  * File-based structured logging sink for lifecycle events.
  *
  * Subscribes to the EventBus and writes all events as NDJSON to a log file,
- * providing persistent, machine-readable audit trails. See ISSUE-0039.
+ * providing persistent, machine-readable audit trails.
  */
 
 import { closeSync, mkdirSync, openSync, writeSync } from "node:fs"
@@ -29,9 +29,9 @@ export function formatTimestamp(iso: string): string {
 }
 
 /** Options for creating a FileLogSink. */
-export interface FileLogSinkOptions {
+export type FileLogSinkOptions = {
   /** Directory to write log files into. Created if absent. */
-  readonly logDir: string
+  logDir: string
 }
 
 /**
@@ -43,8 +43,8 @@ export interface FileLogSinkOptions {
  * when a `run_finished` event is received.
  */
 export class FileLogSink {
-  readonly #logDir: string
-  readonly #encoder = new TextEncoder()
+  #logDir: string
+  #encoder = new TextEncoder()
   #fd: number | null = null
   #closed = false
   #filePath: string | null = null
@@ -59,7 +59,7 @@ export class FileLogSink {
   }
 
   /** EventListener -- pass to bus.on(). */
-  readonly listener: EventListener = (event: LifecycleEvent): void => {
+  listener: EventListener = (event: LifecycleEvent): void => {
     if (this.#closed) return
 
     // Lazily open the file on the first event (run_started)

@@ -2,7 +2,7 @@
  * Error formatting for user-facing CLI output.
  *
  * Renders IgnitionError instances with contextual details (hostname,
- * file path) and actionable suggestions. See ISSUE-0043.
+ * file path) and actionable suggestions.
  */
 
 import { IgnitionError } from "../core/errors.ts"

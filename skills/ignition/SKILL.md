@@ -17,43 +17,49 @@ description: >
 
 # Ignition Agent Skill
 
-Orchestrate the full Ignition workflow: discover resources, generate a recipe,
-validate with check mode, get human confirmation, then execute.
-All commands below assume the installed `ignition` CLI is on PATH.
+Use this skill as the workflow and safety layer for Ignition.
+Do not use this file as the canonical CLI reference.
 
-## 1. Discover (dynamic schema)
+For the live CLI surface:
 
-Load the full contract in one call (machine-parseable):
+- `ignition --llms` emits the machine-readable command manifest
+- `ignition skills add` syncs generated per-command skills to the agent
+- Global sync writes command skills under `~/.agents/skills/`
+
+Prefer the generated command skills when you need exact arguments, options, or
+output fields:
+
+- `ignition-run`
+- `ignition-inventory`
+- `ignition-schema`
+- `ignition-init`
+- `ignition-dashboard`
+
+Use this main skill for orchestration across those commands: discovery, recipe
+authoring, dry-run review, confirmation, execution, and audit.
+
+## 1. Discover
+
+Use `ignition-schema` or the underlying schema commands to inspect the current
+resource, recipe, and inventory shapes:
 
 ```bash
-ignition schema all --format json
+ignition schema resources --format json
+ignition schema resource <name> --format json
+ignition schema recipe --format json
+ignition schema inventory --format json
 ```
 
-This returns a complete JSON contract with top-level sections:
+For the current machine-readable `run` output, prefer `ignition-run` or
+`ignition run --schema`.
+Do not assume `ignition schema output` exactly matches the current
+`ignition run --format json` payload.
 
-- `resources` (all 5 resource schemas with steering metadata)
-- `recipe` (recipe file contract)
-- `inventory` (inventory file contract + target syntax)
-- `cli` (machine-readable CLI grammar and flags)
-- `output` (run/check JSON output contract)
-
-Use this as the canonical source for agent capability discovery. `ignition --help`
-is human-oriented text and not the full machine contract.
-
-Optional human/LLM narrative format:
-
-```bash
-ignition schema all --format agent
-```
-
-For focused discovery:
-
-- Single resource: `ignition schema resource <name> --format agent`
-- CLI-only contract: `ignition schema cli --format json`
+Available output formats: `toon` (default human), `json`, `yaml`, `md`, `jsonl`.
 
 ## 2. Generate recipe
 
-Recipes are TypeScript files. Follow this exact pattern:
+Recipes are TypeScript files. Follow this pattern:
 
 ```typescript
 import type { ExecutionContext } from "@grovemotorco/ignition"
@@ -65,65 +71,76 @@ export const meta = {
 }
 
 export default async function (ctx: ExecutionContext): Promise<void> {
-  const { apt, file, service, directory, exec } = createResources(ctx)
+  const { apt, service } = createResources(ctx)
 
-  // Destructure only the resources you need
-  // Call resources with await in sequence
   await apt({ name: "nginx", state: "present" })
   await service({ name: "nginx", state: "started", enabled: true })
 }
 ```
 
-**Rules:**
+Rules:
 
-- All imports from `@grovemotorco/ignition` (type import for `ExecutionContext`)
-- Destructure only needed resources from `createResources(ctx)`
-- Each resource call must be `await`ed
+- Import from `@grovemotorco/ignition`
+- Destructure only the resources you need from `createResources(ctx)`
+- `await` every resource call
 - Access variables via `ctx.vars.keyName` (cast as needed)
-- Templates are functions: `(vars: TemplateContext) => string` (import with `import type { TemplateContext } from "@grovemotorco/ignition"` when explicitly typed)
+- Templates are functions: `(vars: TemplateContext) => string`
 - `content`, `source`, and `template` on `file` are mutually exclusive
+- Use `meta.tags` when the user wants `ignition run --tags` filtering
 
 Save recipes wherever you want (for example `recipe.ts` or `recipes/<name>.ts`)
-and pass that path to `ignition check` / `ignition run`.
+and pass that path to `ignition run`.
 
 ## 3. Validate (check mode)
 
-Dry-run without mutations:
+Dry-run without mutations using `--check`:
 
 ```bash
-ignition check <recipe.ts> <target> --format json [-i inventory.ts]
+ignition run <recipe.ts> <targets> --check --format json [--inventory inventory.ts]
 ```
 
-Parse the JSON output:
+Parse the current JSON summary:
 
-- `hasFailures === false` means all resources passed
-- Each resource result has `status`: `"ok"` | `"changed"` | `"failed"`
-- Review `current` vs `desired` state diffs
-- Present a clear pass/fail summary to the user
+- `hasFailures === false` means no host reported failures
+- Each host result has `name`, `ok`, `changed`, and `failed`
+- The current JSON output is summary-only; do not claim per-resource diffs
+  unless you observed them separately
+- Present a clear per-host pass/fail summary to the user
+
+If the user wants a detailed explanation of intended changes, inspect the recipe
+and relevant resource schemas, or review the default human output instead of
+assuming the JSON summary contains diffs.
 
 ## 4. Confirm (human-in-the-loop)
 
-**Never skip this step.** Before applying, present the user with:
+Never skip this step. Before applying, present the user with:
 
-- Resources and their expected changes
 - Target host(s)
-- Any warnings (destructive ops, non-idempotent resources like `exec`)
+- Expected changed/failed summary from check mode
+- Warnings for destructive or non-idempotent resources such as `exec`
 
 Wait for explicit user confirmation.
+`--confirm` is an optional extra CLI prompt, not a substitute for user approval.
 
 ## 5. Execute (apply mode)
 
 ```bash
-ignition run <recipe.ts> <target> --format json [-i inventory.ts]
+ignition run <recipe.ts> <targets> --format json [--inventory inventory.ts]
 ```
 
-Parse the JSON output — same structure as check. Report per-resource status and
-surface any errors (`error.message`, `error.name`).
+Parse the same summary shape as check mode and report per-host status.
 
 ## 6. Audit
 
-Log to the user: recipe path, timestamp, run summary (hosts, ok/changed/failed
-counts per host).
+Log to the user:
+
+- Recipe path
+- Targets
+- Inventory path when used
+- Per-host `ok` / `changed` / `failed` counts
+
+Capture timestamps in the calling environment when needed; do not assume the
+current `run --format json` payload includes them.
 
 ## Target syntax
 
@@ -132,53 +149,14 @@ counts per host).
 - Multiple: `web-1,web-2`
 - Ad-hoc (no inventory): `user@host:port`
 
-When using named hosts or groups, pass `-i <inventory.ts>` unless inventory is
-already configured (for example in `ignition.config.ts`).
-
-## Output contract
-
-Canonical contract source:
-
-```bash
-ignition schema all --format json
-```
-
-Read:
-
-- `.output` for run/check JSON envelope + `resourceResult` contract
-- `.cli` for command/flag grammar
-
-RunSummary envelope from `--format json` (illustrative subset):
-
-```json
-{
-  "recipe": { "path": "...", "checksum": "sha256:..." },
-  "timestamp": "ISO-8601",
-  "mode": "apply|check",
-  "hasFailures": false,
-  "durationMs": 1234,
-  "hosts": [
-    {
-      "host": { "name": "web-1", "hostname": "10.0.1.10" },
-      "results": [{ "type": "apt", "name": "nginx", "status": "changed", "durationMs": 3200 }],
-      "ok": 0,
-      "changed": 1,
-      "failed": 0,
-      "durationMs": 3200
-    }
-  ]
-}
-```
-
-Errors: `{ "message": string, "name": string }` — check `hasFailures` and
-per-resource `status: "failed"` entries.
+When using named hosts or groups, pass `--inventory <file>` unless inventory is
+already configured in `ignition.config.ts`.
 
 ## Safety
 
-- Always `check` before `run`
+- Always run `--check` before apply
 - Never skip human confirmation
-- `destructive: true` resources can remove state (`file`/`apt`/`directory` with
-  `state: "absent"`, and `exec` which runs arbitrary commands)
-- `idempotent: false` resources always execute (`exec`, `service` with
-  `restarted`/`reloaded`)
-- Use `--error-mode fail-fast` (default) for safety
+- Treat `exec` as destructive / non-idempotent unless the recipe proves otherwise
+- Treat absent-state resources as destructive (`file`, `apt`, `directory`)
+- Use `--error-mode fail-fast` by default unless the user explicitly wants a
+  different failure policy

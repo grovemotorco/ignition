@@ -1,48 +1,48 @@
 /**
  * Transport types — capability-driven transport abstraction.
  *
- * Defines the Transport interface and supporting types. SSH remains
+ * Defines the Transport type and supporting types. SSH remains
  * first-class; future transports can implement a subset of capabilities
- * without resource-layer rewrites. See ADR-0004, ADR-0015, ISSUE-0020.
+ * without resource-layer rewrites.
  */
 
-/** Host key checking policy. See ADR-0009. */
+/** Host key checking policy. */
 export type HostKeyPolicy = "strict" | "accept-new" | "off"
 
 /** Configuration for an SSH connection. */
-export interface SSHConnectionConfig {
+export type SSHConnectionConfig = {
   /** SSH hostname or IP address. */
-  readonly hostname: string
+  hostname: string
   /** SSH port (default 22). */
-  readonly port: number
+  port: number
   /** SSH user. */
-  readonly user: string
+  user: string
   /** Path to private key file (optional — falls back to agent/default). */
-  readonly privateKey?: string
+  privateKey?: string | undefined
   /** Host key checking policy. */
-  readonly hostKeyPolicy: HostKeyPolicy
+  hostKeyPolicy: HostKeyPolicy
   /** Enable OpenSSH multiplexing (ControlMaster). Defaults to true. */
-  readonly multiplexing?: boolean
+  multiplexing?: boolean | undefined
   /** Directory for ControlPath sockets. Defaults to system temp dir. */
-  readonly controlDirectory?: string
+  controlDirectory?: string | undefined
 }
 
 /** Options for `SSHConnection.exec()`. */
-export interface ExecOptions {
+export type ExecOptions = {
   /** Data to pipe to stdin. */
-  stdin?: string | Uint8Array
+  stdin?: string | Uint8Array | undefined
   /** Timeout in milliseconds (0 = no timeout). */
-  timeoutMs?: number
+  timeoutMs?: number | undefined
   /** Callback invoked with each stdout chunk as it arrives. */
-  onStdout?: (chunk: string) => void
+  onStdout?: ((chunk: string) => void) | undefined
   /** Callback invoked with each stderr chunk as it arrives. */
-  onStderr?: (chunk: string) => void
-  /** AbortSignal for cooperative cancellation. See ISSUE-0030. */
-  signal?: AbortSignal
+  onStderr?: ((chunk: string) => void) | undefined
+  /** AbortSignal for cooperative cancellation. */
+  signal?: AbortSignal | undefined
 }
 
 /** Result of a remote command execution. */
-export interface ExecResult {
+export type ExecResult = {
   /** Exit code of the remote process. */
   exitCode: number
   /** Standard output. */
@@ -52,7 +52,7 @@ export interface ExecResult {
 }
 
 // ---------------------------------------------------------------------------
-// Transport Capabilities (ADR-0015, ISSUE-0020)
+// Transport Capabilities
 // ---------------------------------------------------------------------------
 
 /**
@@ -66,15 +66,15 @@ export interface ExecResult {
 export type TransportCapability = "exec" | "transfer" | "fetch" | "ping"
 
 /**
- * Capability-driven transport interface. See ADR-0015.
+ * Capability-driven transport type.
  *
  * Every transport must declare its supported capabilities via `capabilities()`.
  * Callers should check capabilities before invoking optional methods.
  * SSH implements all four capabilities; future transports may implement a subset.
  */
-export interface Transport {
+export type Transport = {
   /** Connection configuration. */
-  readonly config: SSHConnectionConfig
+  config: SSHConnectionConfig
   /** Return the set of capabilities this transport supports. */
   capabilities(): ReadonlySet<TransportCapability>
   /** Execute a command on the remote host. Requires 'exec' capability. */

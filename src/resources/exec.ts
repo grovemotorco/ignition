@@ -3,7 +3,7 @@
  *
  * This is the foundational resource that other resources build upon.
  * `check()` always returns not-in-desired-state (exec always runs).
- * `apply()` executes the command via SSH. See ISSUE-0006.
+ * `apply()` executes the command via SSH.
  */
 
 import type {
@@ -17,28 +17,28 @@ import { ResourceError, SSHCommandError } from "../core/errors.ts"
 import { executeResource, requireCapability } from "../core/resource.ts"
 
 /** Input options for the exec resource. */
-export interface ExecInput {
+export type ExecInput = {
   /** The command to execute. */
-  readonly command: string
+  command: string
   /** Run the command with sudo. */
-  readonly sudo?: boolean
+  sudo?: boolean | undefined
   /** Working directory for command execution. */
-  readonly cwd?: string
+  cwd?: string | undefined
   /** Environment variables to set. */
-  readonly env?: Record<string, string>
+  env?: Record<string, string> | undefined
   /** If false, non-zero exit codes are not treated as failures. Default: true. */
-  readonly check?: boolean
+  check?: boolean | undefined
   /** Skip apply if this command exits 0 (desired state already met). */
-  readonly unless?: string
+  unless?: string | undefined
   /** Only apply if this command exits 0 (precondition met). */
-  readonly onlyIf?: string
+  onlyIf?: string | undefined
 }
 
 /** Output of a successful exec resource. */
-export interface ExecOutput {
-  readonly exitCode: number
-  readonly stdout: string
-  readonly stderr: string
+export type ExecOutput = {
+  exitCode: number
+  stdout: string
+  stderr: string
 }
 
 /** Build the full command string from input options. */
@@ -68,7 +68,7 @@ function shellQuote(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`
 }
 
-/** Schema for the exec resource. See ISSUE-0028. */
+/** Schema for the exec resource. */
 export const execSchema: ResourceSchema = {
   description: "Run an arbitrary command on the remote host via SSH.",
   whenToUse: [

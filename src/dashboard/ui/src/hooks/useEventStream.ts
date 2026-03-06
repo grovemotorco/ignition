@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react"
+import { useEffect, useReducer, useRef, useState } from "react"
 import {
   createInitialState,
   type DashboardState,
@@ -7,6 +7,7 @@ import {
   type RunSummary,
 } from "../state.ts"
 
+/** Subscribe to dashboard lifecycle events and expose derived UI state. */
 export function useEventStream(): {
   state: DashboardState
   connected: boolean
@@ -80,17 +81,19 @@ export function useEventStream(): {
     }
   }, [])
 
-  const selectRun = useCallback(async (runId: string) => {
-    try {
-      const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/events`)
-      if (res.ok) {
-        const events: LifecycleEvent[] = await res.json()
-        dispatch({ type: "SELECT_RUN", runId, events })
+  function selectRun(runId: string): void {
+    void (async () => {
+      try {
+        const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/events`)
+        if (res.ok) {
+          const events: LifecycleEvent[] = await res.json()
+          dispatch({ type: "SELECT_RUN", runId, events })
+        }
+      } catch {
+        // Failed to fetch historical run
       }
-    } catch {
-      // Failed to fetch historical run
-    }
-  }, [])
+    })()
+  }
 
   return { state, connected, selectRun }
 }

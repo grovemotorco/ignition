@@ -1,5 +1,6 @@
 import type { RunState } from "../state.ts"
 
+/** Render the active run metadata header. */
 export function RunHeader({ run }: { run: RunState }) {
   const time = new Date(run.startedAt).toLocaleTimeString()
   return (

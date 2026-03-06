@@ -2,8 +2,7 @@
  * Recipe loader — dynamically imports a recipe .ts file and validates its shape.
  *
  * The loaded module must default-export a function (the recipe). It may
- * optionally export a `meta` object with description and tags. See ADR-0006
- * and ISSUE-0009.
+ * optionally export a `meta` object with description and tags.
  */
 
 import { RecipeLoadError } from "../core/errors.ts"

@@ -3,7 +3,7 @@
  *
  * Tests file, directory, and exec resources individually against a shared
  * sandbox, exercising the actual SSH commands that check() and apply() emit.
- * Skips gracefully when DENO_DEPLOY_TOKEN is not set. See ADR-0017, ISSUE-0022.
+ * Skips gracefully when DENO_DEPLOY_TOKEN is not set.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"

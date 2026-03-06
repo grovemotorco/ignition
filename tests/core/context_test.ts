@@ -200,7 +200,7 @@ test("hasFailed is true when any result is failed", () => {
 })
 
 // ---------------------------------------------------------------------------
-// Scoped variables (ISSUE-0035)
+// Scoped variables
 // ---------------------------------------------------------------------------
 
 function makeCtx(vars?: Record<string, unknown>): ExecutionContextImpl {

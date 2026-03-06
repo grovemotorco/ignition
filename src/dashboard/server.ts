@@ -7,7 +7,6 @@
  * with EventBus.on(). Supports multi-run history and a `/ws/push` producer
  * endpoint for cross-process event streaming.
  *
- * See ISSUE-0024, specs/web-dashboard.md (WEB-001).
  */
 
 import { join } from "node:path"
@@ -16,79 +15,76 @@ import type { EventListener, LifecycleEvent } from "../output/events.ts"
 import { DASHBOARD_HTML } from "./assets.ts"
 
 /** WebSocket data payload used to distinguish consumer vs producer sockets. */
-interface WsData {
-  readonly type: "consumer" | "producer"
+type WsData = {
+  type: "consumer" | "producer"
 }
 
-interface ServerLike {
-  readonly port?: number
+type ServerLike = {
+  port?: number | undefined
   stop(): void
 }
 
-interface ServerLikeUpgradeTarget {
+type ServerLikeUpgradeTarget = {
   upgrade(req: Request, opts: { data: WsData }): boolean
 }
 
-interface ServerSocketLike {
-  readonly data: WsData
-  readonly readyState: number
+type ServerSocketLike = {
+  data: WsData
+  readyState: number
   send(data: string): void
   close(): void
 }
 
-interface ServerLikeWebsocketHandlers {
+type ServerLikeWebsocketHandlers = {
   open(ws: ServerSocketLike): void
   message(ws: ServerSocketLike, msg: string | Buffer): void
   close(ws: ServerSocketLike): void
 }
 
-interface ServerLikeOptions {
-  readonly port: number
-  readonly hostname: string
-  readonly fetch: (
-    req: Request,
-    server: ServerLikeUpgradeTarget,
-  ) => Response | Promise<Response> | undefined
-  readonly websocket: ServerLikeWebsocketHandlers
+type ServerLikeOptions = {
+  port: number
+  hostname: string
+  fetch: (req: Request, server: ServerLikeUpgradeTarget) => Response | Promise<Response> | undefined
+  websocket: ServerLikeWebsocketHandlers
 }
 
 type ServeLike = (opts: ServerLikeOptions) => ServerLike
 
 /** Testability seam for injecting a custom `serve` implementation. */
-export interface DashboardServerDeps {
-  readonly serve: ServeLike
+export type DashboardServerDeps = {
+  serve: ServeLike
 }
 
 /** Configuration options for the dashboard server. */
-export interface DashboardServerOptions {
+export type DashboardServerOptions = {
   /** Port to listen on. Default: 9090. */
-  readonly port: number
+  port: number
   /** Hostname to bind. Default: "127.0.0.1" (localhost only). */
-  readonly hostname: string
+  hostname: string
   /**
    * Path to pre-built static files (React app dist/).
    * Set to null to disable static serving.
    */
-  readonly staticDir: string | null
+  staticDir: string | null
   /** Maximum number of completed runs to retain. Default: 10. */
-  readonly maxHistory: number
+  maxHistory: number
 }
 
 /** A single recorded run with its events. */
-export interface RunRecord {
-  readonly runId: string
-  readonly events: LifecycleEvent[]
-  readonly startedAt: string
-  finishedAt?: string
+export type RunRecord = {
+  runId: string
+  events: LifecycleEvent[]
+  startedAt: string
+  finishedAt?: string | undefined
 }
 
 /** Summary of a run for the /api/runs listing. */
-export interface RunSummary {
-  readonly id: string
-  readonly mode: string
-  readonly startedAt: string
-  readonly finishedAt?: string
-  readonly hasFailures?: boolean
+export type RunSummary = {
+  id: string
+  mode: string
+  startedAt: string
+  finishedAt?: string | undefined
+  hasFailures?: boolean | undefined
 }
 
 const MAX_EVENT_BUFFER = 10_000
@@ -161,22 +157,22 @@ export class DashboardServer {
   #serveEmbeddedFallback: boolean
   #port = 0
 
-  constructor(opts?: Partial<DashboardServerOptions>, deps?: Partial<DashboardServerDeps>) {
+  constructor(opts: Partial<DashboardServerOptions> = {}, deps: Partial<DashboardServerDeps> = {}) {
     // Distinguish omitted staticDir (serve embedded fallback) from explicit null (disable static routes).
-    this.#serveEmbeddedFallback = opts?.staticDir === undefined
+    this.#serveEmbeddedFallback = opts.staticDir === undefined
     this.#opts = {
-      port: opts?.port ?? 9090,
-      hostname: opts?.hostname ?? "127.0.0.1",
-      staticDir: opts?.staticDir === undefined ? null : opts.staticDir,
-      maxHistory: opts?.maxHistory ?? 10,
+      port: opts.port ?? 9090,
+      hostname: opts.hostname ?? "127.0.0.1",
+      staticDir: opts.staticDir === undefined ? null : opts.staticDir,
+      maxHistory: opts.maxHistory ?? 10,
     }
     this.#deps = {
-      serve: deps?.serve ?? defaultServe,
+      serve: deps.serve ?? defaultServe,
     }
   }
 
   /** EventListener-compatible handler. Register with EventBus.on(). */
-  readonly listener: EventListener = (event: LifecycleEvent): void => {
+  listener: EventListener = (event: LifecycleEvent): void => {
     this.#ingestEvent(event)
   }
 
@@ -256,7 +252,7 @@ export class DashboardServer {
   }
 
   /** Completed run history (most recent last). */
-  get runs(): readonly RunRecord[] {
+  get runs(): RunRecord[] {
     return this.#runs
   }
 

@@ -17,25 +17,25 @@ import {
 import type { HostContext, Reporter } from "../../src/core/types.ts"
 
 /** Recorded exec call for assertion. */
-export interface ExecCall {
+export type ExecCall = {
   command: string
-  opts?: ExecOptions
+  opts?: ExecOptions | undefined
 }
 
 /** Recorded transfer call for assertion. */
-export interface TransferCall {
+export type TransferCall = {
   localPath: string
   remotePath: string
 }
 
 /** Recorded fetch call for assertion. */
-export interface FetchCall {
+export type FetchCall = {
   remotePath: string
   localPath: string
 }
 
 /** All calls recorded by a mock transport. */
-export interface MockSSHCalls {
+export type MockSSHCalls = {
   exec: ExecCall[]
   transfer: TransferCall[]
   fetch: FetchCall[]
@@ -44,7 +44,7 @@ export interface MockSSHCalls {
 }
 
 /** Options for creating a mock transport. */
-export interface MockSSHOptions {
+export type MockSSHOptions = {
   /** Override the exec handler. Default: returns exit 0 with empty output. */
   exec?: (command: string, opts?: ExecOptions) => Promise<ExecResult>
   /** Override the transfer handler. Default: resolves. */
@@ -109,7 +109,7 @@ export function createMockSSH(opts: MockSSHOptions = {}): {
     },
     async exec(command: string, execOpts?: ExecOptions): Promise<ExecResult> {
       calls.exec.push({ command, opts: execOpts })
-      // Reject immediately if the signal is already aborted (ISSUE-0030)
+      // Reject immediately if the signal is already aborted.
       if (execOpts?.signal?.aborted) {
         throw new Error("exec aborted")
       }

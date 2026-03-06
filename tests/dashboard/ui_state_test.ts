@@ -113,7 +113,7 @@ test("eventReducer — foreign run completion updates sidebar while preserving s
 })
 
 // ---------------------------------------------------------------------------
-// resource_output events (ISSUE-0037)
+// resource_output events
 // ---------------------------------------------------------------------------
 
 function resourceStarted(

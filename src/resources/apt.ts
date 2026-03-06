@@ -3,7 +3,6 @@
  *
  * `check()` queries dpkg/apt-cache for installed vs desired package state.
  * `apply()` installs, removes, or upgrades packages via apt-get.
- * See ISSUE-0008.
  */
 
 import type {
@@ -17,20 +16,20 @@ import { executeResource, requireCapability } from "../core/resource.ts"
 import { ResourceError } from "../core/errors.ts"
 
 /** Input options for the apt resource. */
-export interface AptInput {
+export type AptInput = {
   /** Package name or list of package names. */
-  readonly name: string | string[]
+  name: string | string[]
   /** Desired state. Default: 'present'. */
-  readonly state?: "present" | "absent" | "latest"
+  state?: "present" | "absent" | "latest" | undefined
   /** Run apt-get update before install. Default: false. */
-  readonly update?: boolean
+  update?: boolean | undefined
 }
 
 /** Output of a successful apt resource. */
-export interface AptOutput {
+export type AptOutput = {
   /** Map of package name → installed version. */
-  readonly packages: Record<string, string>
-  readonly changed: boolean
+  packages: Record<string, string>
+  changed: boolean
 }
 
 /** Quote a string for safe shell interpolation. */
@@ -119,7 +118,7 @@ function parseAptCachePolicy(
   return result
 }
 
-/** Schema for the apt resource. See ISSUE-0028. */
+/** Schema for the apt resource. */
 export const aptSchema: ResourceSchema = {
   description: "Manage Debian/Ubuntu packages via apt-get.",
   whenToUse: [

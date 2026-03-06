@@ -4,23 +4,28 @@
  * Creates an ephemeral Deno Sandbox microVM with SSH access. Provides both
  * a per-test helper (`withSandbox`) and a per-suite helper (`createSandboxHandle`)
  * for use with `beforeAll`/`afterAll`. Requires DENO_DEPLOY_TOKEN to be set in
- * the environment. See ADR-0017, ISSUE-0022.
+ * the environment.
  */
 
 import { Sandbox } from "@deno/sandbox"
 import { createSystemSSHConnection } from "../../src/ssh/connection.ts"
 
 /** SSH credentials returned by the sandbox. */
-export interface SandboxSSH {
-  readonly hostname: string
-  readonly username: string
+export type SandboxSSH = {
+  hostname: string
+  username: string
 }
 
 /** Handle returned by `createSandboxHandle` for use in beforeAll/afterAll. */
-export interface SandboxHandle {
-  readonly ssh: SandboxSSH
-  readonly conn: Awaited<ReturnType<typeof createSystemSSHConnection>>
+export type SandboxHandle = {
+  ssh: SandboxSSH
+  conn: Awaited<ReturnType<typeof createSystemSSHConnection>>
   kill(): Promise<void>
+}
+
+type CreateSandboxHandleOptions = {
+  multiplexing?: boolean | undefined
+  controlDirectory?: string | undefined
 }
 
 /** Whether the sandbox token is available (integration tests can run). */
@@ -35,10 +40,9 @@ export function hasSandboxToken(): boolean {
  * Returns the SSH credentials, a shared connection, and a kill function.
  * This avoids spinning up a new VM per test.
  */
-export async function createSandboxHandle(opts?: {
-  multiplexing?: boolean
-  controlDirectory?: string
-}): Promise<SandboxHandle> {
+export async function createSandboxHandle(
+  options: CreateSandboxHandleOptions = {},
+): Promise<SandboxHandle> {
   const sandbox = await Sandbox.create({ lifetime: "5m", region: "ord" })
   const ssh = await sandbox.exposeSsh()
   await waitForSshReady({ hostname: ssh.hostname, username: ssh.username })
@@ -48,8 +52,8 @@ export async function createSandboxHandle(opts?: {
     port: 22,
     user: ssh.username,
     hostKeyPolicy: "off",
-    multiplexing: opts?.multiplexing ?? false,
-    controlDirectory: opts?.controlDirectory,
+    multiplexing: options.multiplexing ?? false,
+    controlDirectory: options.controlDirectory,
   })
 
   return {

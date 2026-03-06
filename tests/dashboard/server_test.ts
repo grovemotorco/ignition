@@ -3,22 +3,22 @@ import { DashboardServer } from "../../src/dashboard/server.ts"
 import type { RunSummary } from "../../src/dashboard/server.ts"
 import type { LifecycleEvent, RunFinishedEvent, RunStartedEvent } from "../../src/output/events.ts"
 
-interface FakeSocket {
-  readonly data: { type: "consumer" | "producer" }
-  readonly sent: string[]
+type FakeSocket = {
+  data: { type: "consumer" | "producer" }
+  sent: string[]
   readyState: number
   send(data: string): void
   close(): void
 }
 
-interface ServeHarness {
-  readonly deps: object
-  readonly serverLike: {
+type ServeHarness = {
+  deps: object
+  serverLike: {
     port: number
     stop(): void
     upgrade(req: Request, opts: { data: { type: "consumer" | "producer" } }): boolean
   }
-  readonly upgradeCalls: Array<{ pathname: string; type: "consumer" | "producer" }>
+  upgradeCalls: Array<{ pathname: string; type: "consumer" | "producer" }>
   get stopCalls(): number
   get options(): {
     fetch: (

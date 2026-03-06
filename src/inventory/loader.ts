@@ -4,7 +4,7 @@
  *
  * The loaded module must default-export an `Inventory` object. Target resolution
  * supports `@group` references, host names, comma-separated lists, and ad-hoc
- * `user@host:port` targets. See ADR-0007 and ISSUE-0010.
+ * `user@host:port` targets.
  */
 
 import { InventoryError } from "../core/errors.ts"
@@ -161,7 +161,7 @@ function findHost(
  */
 export function resolveTargets(
   inventory: Inventory,
-  targets: readonly string[],
+  targets: string[],
   inventoryPath = "<inline>",
 ): ResolvedHost[] {
   const resolved: ResolvedHost[] = []

@@ -2,7 +2,7 @@
  * Semantic color helpers for CLI output.
  *
  * Provides a consistent color vocabulary across the CLI. All output coloring
- * should use these helpers instead of raw ANSI codes. See ISSUE-0043.
+ * should use these helpers instead of raw ANSI codes.
  */
 
 const ANSI_PREFIX = "\x1b["
@@ -26,12 +26,19 @@ function withAnsi(code: number, text: string): string {
 // Semantic colors
 // ---------------------------------------------------------------------------
 
+/** Color successful status text. */
 export const success = (text: string): string => withAnsi(32, text)
+/** Color error status text. */
 export const error = (text: string): string => withAnsi(31, text)
+/** Color warning status text. */
 export const warning = (text: string): string => withAnsi(33, text)
+/** Color informational status text. */
 export const info = (text: string): string => withAnsi(36, text)
+/** Apply heading emphasis. */
 export const header = (text: string): string => withAnsi(1, text)
+/** Dim less-important text. */
 export const muted = (text: string): string => withAnsi(2, text)
+/** Apply bold emphasis. */
 export const bold = (text: string): string => withAnsi(1, text)
 
 // ---------------------------------------------------------------------------

@@ -55,12 +55,12 @@ const DEFAULT_DEPENDENCY_SPEC = "latest"
 
 type PackageManager = "bun" | "pnpm" | "yarn" | "npm"
 
-interface PackageJson {
-  name?: string
-  private?: boolean
-  type?: string
-  dependencies?: Record<string, unknown>
-  devDependencies?: Record<string, unknown>
+type PackageJson = {
+  name?: string | undefined
+  private?: boolean | undefined
+  type?: string | undefined
+  dependencies?: Record<string, unknown> | undefined
+  devDependencies?: Record<string, unknown> | undefined
   [key: string]: unknown
 }
 
@@ -135,7 +135,7 @@ async function ensureIgnitionDependency(pkg: PackageJson): Promise<"self" | "pre
 }
 
 async function detectPackageManager(): Promise<PackageManager> {
-  const lockfiles: Array<{ manager: PackageManager; files: readonly string[] }> = [
+  const lockfiles: Array<{ manager: PackageManager; files: string[] }> = [
     { manager: "bun", files: ["bun.lock", "bun.lockb"] },
     { manager: "pnpm", files: ["pnpm-lock.yaml"] },
     { manager: "yarn", files: ["yarn.lock"] },
@@ -187,7 +187,7 @@ async function writeEmbeddedLibraryToNodeModules(content: string): Promise<boole
   }
 }
 
-async function runInstallCommand(command: readonly string[]): Promise<number> {
+async function runInstallCommand(command: string[]): Promise<number> {
   const proc = Bun.spawn([...command], {
     stdout: "inherit",
     stderr: "inherit",
@@ -196,6 +196,7 @@ async function runInstallCommand(command: readonly string[]): Promise<number> {
   return await proc.exited
 }
 
+/** CLI command that scaffolds a starter Ignition project in the current directory. */
 export const init = Cli.create("init", {
   description: "Scaffold a new Ignition project",
   vars: loggerVarsSchema,

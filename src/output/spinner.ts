@@ -3,7 +3,6 @@
  *
  * Provides visual feedback during resource execution. When writing to a TTY,
  * displays an animated spinner. Otherwise, outputs a static indicator.
- * See ISSUE-0011.
  */
 
 import { stderrWriter } from "./stderr.ts"
@@ -17,15 +16,17 @@ const INTERVAL_MS = 80
 const LINE_RESET = "\x1b[1G\x1b[2K"
 
 /** Options for creating a Spinner. */
-export interface SpinnerOptions {
+export type SpinnerOptions = {
   /** The writer to output to. Defaults to process.stderr. */
-  readonly writer?: {
-    readonly isTerminal: () => boolean
-    readonly columns?: () => number | undefined
-    writeSync(p: Uint8Array): number
-  }
+  writer?:
+    | {
+        isTerminal: () => boolean
+        columns?: () => number | undefined
+        writeSync(p: Uint8Array): number
+      }
+    | undefined
   /** Spinner interval in ms. Defaults to 80. */
-  readonly intervalMs?: number
+  intervalMs?: number | undefined
 }
 
 /**
@@ -35,14 +36,14 @@ export interface SpinnerOptions {
  * - In non-TTY mode: prints the message once with a static marker.
  */
 export class Spinner {
-  readonly #writer: {
-    readonly isTerminal: () => boolean
-    readonly columns?: () => number | undefined
+  #writer: {
+    isTerminal: () => boolean
+    columns?: () => number | undefined
     writeSync(p: Uint8Array): number
   }
-  readonly #intervalMs: number
-  readonly #isTTY: boolean
-  readonly #encoder = new TextEncoder()
+  #intervalMs: number
+  #isTTY: boolean
+  #encoder = new TextEncoder()
   #timerId: ReturnType<typeof setInterval> | undefined = undefined
   #frameIndex = 0
   #message = ""

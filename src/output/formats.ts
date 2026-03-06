@@ -3,7 +3,7 @@
  *
  * These format a RunSummary for non-interactive output. `JsonFormatter`
  * emits machine-readable JSON. `MinimalFormatter` emits a compact
- * one-line-per-resource format. See ISSUE-0011, ISSUE-0021.
+ * one-line-per-resource format.
  */
 
 import type { HostRunSummary, ResourceResult, RunMode, RunSummary } from "../core/types.ts"
@@ -24,13 +24,13 @@ import { formatDuration } from "../lib/formatters/output.ts"
  * by default.
  *
  * Also supports formatting individual lifecycle events for schema-consistent
- * output (ISSUE-0021).
+ * output.
  */
 export class JsonFormatter {
-  readonly #redactionPolicy?: RedactionPolicy
+  #redactionPolicy?: RedactionPolicy | undefined
 
-  constructor(opts?: { redactionPolicy?: RedactionPolicy }) {
-    this.#redactionPolicy = opts?.redactionPolicy
+  constructor(opts: { redactionPolicy?: RedactionPolicy | undefined } = {}) {
+    this.#redactionPolicy = opts.redactionPolicy
   }
 
   /** Format a RunSummary as a JSON string. */
@@ -66,7 +66,7 @@ function serializeError(_key: string, value: unknown): unknown {
  * is displayed as "would change".
  */
 export class MinimalFormatter {
-  readonly #mode: RunMode
+  #mode: RunMode
 
   constructor(mode: RunMode) {
     this.#mode = mode

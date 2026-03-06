@@ -2,8 +2,8 @@
  * Integration test: SCP transfer & fetch against real Deno Sandbox microVMs.
  *
  * Tests file push/pull via SCP, the file resource's source mode, and SSH
- * multiplexing (ControlMaster). Uses one shared sandbox per suite. Skips
- * gracefully when DENO_DEPLOY_TOKEN is not set. See ADR-0017, ISSUE-0022.
+ * multiplexing (ControlMaster). Uses one shared sandbox per suite and skips
+ * gracefully when DENO_DEPLOY_TOKEN is not set.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"

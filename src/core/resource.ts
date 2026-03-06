@@ -2,12 +2,10 @@
  * Resource lifecycle engine — executeResource().
  *
  * Drives the check-then-apply lifecycle for all resources with policy-driven
- * timeout and retry support. Enforces the idempotence contract defined in
- * ADR-0012 and ISSUE-0017. See also ADR-0002, ADR-0011, ISSUE-0005, ISSUE-0016.
+ * timeout and retry support. Enforces the idempotence contract.
  *
- * Supports an optional non-authoritative check result cache (ADR-0013,
- * ISSUE-0018). Cache is advisory for check mode only — apply mode always
- * performs a live check.
+ * Supports an optional non-authoritative check result cache. Cache is
+ * advisory for check mode only — apply mode always performs a live check.
  *
  * **Idempotence contract enforcement**:
  * - check() is called first (read-only, side-effect free).
@@ -40,7 +38,6 @@ import { stableStringify } from "./serialize.ts"
  * Resources should call this before performing operations that depend
  * on optional transport capabilities (e.g. 'transfer', 'fetch').
  *
- * See ADR-0015, ISSUE-0020.
  */
 export function requireCapability(
   ctx: ExecutionContext,
@@ -57,7 +54,7 @@ export function requireCapability(
  * AbortController that fires on timeout OR when the parent signal fires.
  * The derived signal is passed to `fn` so the transport can kill the
  * subprocess immediately on abort. Races the fn result with an abort
- * rejection so stuck operations are interrupted. See ISSUE-0030.
+ * rejection so stuck operations are interrupted.
  */
 function withTimeout<T>(
   fn: (signal: AbortSignal) => Promise<T>,
@@ -187,7 +184,7 @@ function withConnection(ctx: ExecutionContext, connection: Transport): Execution
  * Clone an execution context with a derived AbortSignal.
  *
  * Used by withTimeout() to thread per-phase signals into the context so
- * resources and transport calls can observe cancellation. See ISSUE-0030.
+ * resources and transport calls can observe cancellation.
  */
 function withSignal(ctx: ExecutionContext, signal: AbortSignal): ExecutionContext {
   return Object.assign(Object.create(Object.getPrototypeOf(ctx) ?? Object.prototype), ctx, {
@@ -201,7 +198,7 @@ function withSignal(ctx: ExecutionContext, signal: AbortSignal): ExecutionContex
  *
  * This ensures built-in resources that call `ctx.connection.exec(...)` (without
  * explicitly passing `{ signal: ctx.signal }`) still propagate cancellation to
- * the transport layer. See ISSUE-0030.
+ * the transport layer.
  */
 function withPhaseSignal(ctx: ExecutionContext, signal: AbortSignal): ExecutionContext {
   const signaled = withSignal(ctx, signal)
@@ -232,7 +229,7 @@ export async function executeResource<TInput, TOutput>(
 ): Promise<ResourceResult<TOutput>> {
   const name = def.formatName(input)
 
-  // --- Resource-tag filtering (ISSUE-0031) ---
+  // --- Resource-tag filtering ---
   // When an active tag filter is set on the context and the call carries tags,
   // skip execution if none of the call's tags match the filter.
   if (ctx.resourceTags && ctx.resourceTags.length > 0 && meta?.tags) {
@@ -340,7 +337,7 @@ export async function executeResource<TInput, TOutput>(
   }
 
   try {
-    // --- Signal check before check phase (ISSUE-0030) ---
+    // --- Signal check before check phase ---
     if (ctx.signal?.aborted) {
       throw new Error("Resource aborted")
     }
@@ -392,7 +389,7 @@ export async function executeResource<TInput, TOutput>(
         durationMs: performance.now() - start,
       }
     } else {
-      // --- Signal check before apply phase (ISSUE-0030) ---
+      // --- Signal check before apply phase ---
       if (ctx.signal?.aborted) {
         throw new Error("Resource aborted")
       }
@@ -424,7 +421,7 @@ export async function executeResource<TInput, TOutput>(
         },
       )
 
-      // --- Post-check phase (ISSUE-0036) ---
+      // --- Post-check phase ---
       // When postCheck is enabled, run check() again after apply() to
       // verify convergence. If post-check shows still not in desired
       // state, this is a convergence failure → status 'failed'.
@@ -510,7 +507,7 @@ export async function executeResource<TInput, TOutput>(
     result.attempts = attempts
   }
 
-  // Attach call metadata when provided (ISSUE-0031)
+  // Attach call metadata when provided
   if (meta) {
     result.meta = meta
   }

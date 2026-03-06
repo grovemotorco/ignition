@@ -1,5 +1,6 @@
 import type { HostState, RunState } from "../state.ts"
 
+/** Render the final run summary footer once a run completes. */
 export function RunFooter({ run, hosts }: { run: RunState; hosts: Map<string, HostState> }) {
   const totalFailed = [...hosts.values()].reduce((sum, h) => sum + h.failed, 0)
   return (

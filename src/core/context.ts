@@ -3,7 +3,7 @@
  *
  * Carries the transport connection, run mode, error mode, host metadata,
  * reporter, and accumulated results. Threaded through all resource executions
- * within a single host run. See ISSUE-0004, ADR-0002, ADR-0015.
+ * within a single host run.
  */
 
 import type {
@@ -22,63 +22,62 @@ import type { CorrelationId, EventBus } from "../output/events.ts"
 import type { RedactionPolicy } from "./serialize.ts"
 
 /** Options for constructing an ExecutionContext. */
-export interface ExecutionContextOptions {
-  readonly connection: Transport
-  readonly mode: RunMode
-  readonly errorMode: ErrorMode
-  readonly verbose: boolean
-  readonly host: HostContext
-  readonly reporter: Reporter
-  readonly vars?: Record<string, unknown>
-  /** Optional check result cache. See ISSUE-0018. */
-  readonly cache?: CheckResultCache
+export type ExecutionContextOptions = {
+  connection: Transport
+  mode: RunMode
+  errorMode: ErrorMode
+  verbose: boolean
+  host: HostContext
+  reporter: Reporter
+  vars?: Record<string, unknown> | undefined
+  /** Optional check result cache. */
+  cache?: CheckResultCache | undefined
   /** Optional resource policy defaults for executeResource(). */
-  readonly resourcePolicy?: Partial<ResourcePolicy>
-  /** Optional event bus for lifecycle telemetry. See ISSUE-0029, ADR-0016. */
-  readonly eventBus?: EventBus
-  /** Host correlation ID for event telemetry. See ISSUE-0029. */
-  readonly hostCorrelationId?: CorrelationId
-  /** Active resource-tag filter. See ISSUE-0031. */
-  readonly resourceTags?: readonly string[]
-  /** AbortSignal for cooperative cancellation. See ISSUE-0030. */
-  readonly signal?: AbortSignal
-  /** Platform facts gathered after connectivity is verified. See ISSUE-0032. */
-  readonly facts?: HostFacts
-  /** Optional redaction policy for sensitive data. See ISSUE-0033. */
-  readonly redactionPolicy?: RedactionPolicy
+  resourcePolicy?: Partial<ResourcePolicy> | undefined
+  /** Optional event bus for lifecycle telemetry. */
+  eventBus?: EventBus | undefined
+  /** Host correlation ID for event telemetry. */
+  hostCorrelationId?: CorrelationId | undefined
+  /** Active resource-tag filter. */
+  resourceTags?: string[] | undefined
+  /** AbortSignal for cooperative cancellation. */
+  signal?: AbortSignal | undefined
+  /** Platform facts gathered after connectivity is verified. */
+  facts?: HostFacts | undefined
+  /** Optional redaction policy for sensitive data. */
+  redactionPolicy?: RedactionPolicy | undefined
 }
 
 /**
- * Concrete implementation of the ExecutionContext interface.
+ * Concrete implementation of the ExecutionContext type.
  *
  * Immutable: connection, mode, errorMode, host, reporter.
- * Mutable: vars (stacked scoped state — see ISSUE-0035), results (accumulated during run).
+ * Mutable: vars (stacked scoped state), results (accumulated during run).
  */
 export class ExecutionContextImpl implements IExecutionContext {
-  readonly connection: Transport
-  readonly mode: RunMode
-  readonly errorMode: ErrorMode
-  readonly verbose: boolean
-  readonly host: HostContext
-  readonly reporter: Reporter
-  readonly cache?: CheckResultCache
-  readonly resourcePolicy?: Partial<ResourcePolicy>
-  readonly eventBus?: EventBus
-  readonly hostCorrelationId?: CorrelationId
-  readonly resourceTags?: readonly string[]
-  readonly signal?: AbortSignal
-  readonly facts?: HostFacts
-  readonly redactionPolicy?: RedactionPolicy
+  connection: Transport
+  mode: RunMode
+  errorMode: ErrorMode
+  verbose: boolean
+  host: HostContext
+  reporter: Reporter
+  cache?: CheckResultCache | undefined
+  resourcePolicy?: Partial<ResourcePolicy> | undefined
+  eventBus?: EventBus | undefined
+  hostCorrelationId?: CorrelationId | undefined
+  resourceTags?: string[] | undefined
+  signal?: AbortSignal | undefined
+  facts?: HostFacts | undefined
+  redactionPolicy?: RedactionPolicy | undefined
 
   /**
    * Stack of variable scopes. Index 0 is the root scope (from constructor).
    * Each `withVars()` call pushes a new layer; `setVar()` writes to the topmost.
-   * See ISSUE-0035.
    */
-  private readonly _scopes: Record<string, unknown>[]
+  private _scopes: Record<string, unknown>[]
 
   /** Accumulated resource results. */
-  readonly results: ResourceResult[] = []
+  results: ResourceResult[] = []
 
   constructor(opts: ExecutionContextOptions) {
     this.connection = opts.connection
@@ -102,7 +101,7 @@ export class ExecutionContextImpl implements IExecutionContext {
    * Merged read-only view of all active scopes (latest wins).
    *
    * Returns a Proxy so that `ctx.vars.foo = x` delegates to `setVar()`,
-   * maintaining backward compatibility with existing recipes. See ISSUE-0035.
+   * maintaining backward compatibility with existing recipes.
    */
   get vars(): Record<string, unknown> {
     return new Proxy({} as Record<string, unknown>, {
@@ -159,7 +158,7 @@ export class ExecutionContextImpl implements IExecutionContext {
     })
   }
 
-  /** Set a variable in the current (topmost) scope. See ISSUE-0035. */
+  /** Set a variable in the current (topmost) scope. */
   setVar(key: string, value: unknown): void {
     this._scopes[this._scopes.length - 1][key] = value
   }
@@ -167,7 +166,7 @@ export class ExecutionContextImpl implements IExecutionContext {
   /**
    * Execute a function with additional/overridden vars.
    * The override scope is popped when the function completes (including on error).
-   * Parent vars are not mutated. See ISSUE-0035.
+   * Parent vars are not mutated.
    *
    * Note: concurrent `withVars()` calls on the same context are not supported.
    * The sequential per-host execution model prevents this in practice.

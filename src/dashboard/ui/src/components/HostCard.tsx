@@ -1,6 +1,7 @@
 import type { HostState } from "../state.ts"
 import { ResourceRow } from "./ResourceRow.tsx"
 
+/** Render the resource list and summary for a single host. */
 export function HostCard({ host }: { host: HostState }) {
   return (
     <div className={`host-card host-card--${host.status}`}>
