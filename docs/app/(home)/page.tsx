@@ -360,7 +360,7 @@ export default function HomePage() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Grove Motor Engineering
+            Grove Motor Co Engineering
           </a>
         </div>
       </footer>
