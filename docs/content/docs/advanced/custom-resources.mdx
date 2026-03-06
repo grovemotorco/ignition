@@ -3,7 +3,13 @@ title: Custom Resources
 description: Implement your own resources with ResourceDefinition.
 ---
 
-Ignition's resource system is extensible. You can create custom resources by implementing the `ResourceDefinition` interface.
+Ignition's resource system is extensible, but the custom-resource API is currently internal to the repository. The package root does not currently re-export `ResourceDefinition`, `executeResource`, `requireCapability`, or `ResourceRegistry`.
+
+This page documents the current in-repo pattern implemented in:
+
+- `src/core/types.ts`
+- `src/core/resource.ts`
+- `src/core/registry.ts`
 
 ## The ResourceDefinition interface
 
@@ -17,16 +23,17 @@ interface ResourceDefinition<TInput, TOutput> {
 }
 ```
 
-| Method       | Purpose                                                                  |
-| ------------ | ------------------------------------------------------------------------ |
-| `type`       | Unique lowercase identifier (e.g. `"user"`)                              |
-| `formatName` | Returns a human-readable name for display. Must be pure (no I/O).        |
-| `check`      | Read-only. Returns current state and whether the resource needs changes. |
-| `apply`      | Mutating. Converges to the desired state and returns the output.         |
+| Method       | Purpose                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------- |
+| `type`       | Unique lowercase identifier (e.g. `"user"`)                                                             |
+| `formatName` | Returns a human-readable name for display. Must be pure (no I/O).                                       |
+| `check`      | Inspects current state and reports whether changes are needed. Keep it side-effect-free where possible. |
+| `apply`      | Mutating. Converges to the desired state and returns the output.                                        |
 
 ## Implementing check()
 
-`check()` must be side-effect-free. It inspects the remote host and returns a `CheckResult`:
+`check()` should be side-effect-free wherever possible. It inspects the remote host and returns a
+`CheckResult`:
 
 ```typescript
 async check(
@@ -60,6 +67,7 @@ Key rules:
 - Return `inDesiredState: true` with `output` when no changes are needed
 - Return `inDesiredState: false` without `output` when changes are needed
 - Include `current` and `desired` for diff display
+- Keep mutating preconditions out of `check()` so `ignition run --check` stays trustworthy
 
 ## Implementing apply()
 
@@ -91,11 +99,9 @@ function shellQuote(s: string): string {
 
 ## Capability checks
 
-Use `requireCapability()` to assert the transport supports what you need:
+Use the internal `requireCapability()` helper from `src/core/resource.ts` to assert the transport supports what you need:
 
 ```typescript
-import { requireCapability } from "@grovemotorco/ignition"
-
 async check(ctx: ExecutionContext, input: UserInput) {
   requireCapability(ctx, "exec", "user")
   // ...
@@ -109,13 +115,8 @@ This throws a `CapabilityError` if the transport doesn't support the required ca
 A `user` resource that ensures a system user exists:
 
 ```typescript
-import type {
-  CheckResult,
-  ExecutionContext,
-  ResourceCallMeta,
-  ResourceDefinition,
-} from "@grovemotorco/ignition"
-import { executeResource, requireCapability } from "@grovemotorco/ignition"
+// Imports omitted intentionally.
+// In the current repo, these helpers live in src/core/types.ts and src/core/resource.ts.
 
 interface UserInput {
   readonly name: string
@@ -206,11 +207,9 @@ export default async function (ctx: ExecutionContext) {
 
 ## Registering with ResourceRegistry
 
-Register custom resources for schema generation and agent discoverability:
+Within the repository, `ResourceRegistry` and `defaultRegistry` live in `src/core/registry.ts`. Use them for schema generation and agent discoverability:
 
 ```typescript
-import { ResourceRegistry, defaultRegistry } from "@grovemotorco/ignition"
-
 const registry = new ResourceRegistry()
 
 // Copy built-in resources

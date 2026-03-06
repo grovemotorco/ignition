@@ -13,12 +13,12 @@ ignition init
 
 This creates:
 
-| File                 | Purpose                                                      |
-| -------------------- | ------------------------------------------------------------ |
-| `recipe.ts`          | A starter recipe that runs `uname -a`                        |
-| `inventory.ts`       | An example inventory with one host                           |
-| `ignition.config.ts` | Project configuration                                        |
-| `package.json`       | Created if missing, adds `@grovemotorco/ignition` dependency |
+| File                 | Purpose                                                                         |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `recipe.ts`          | A starter recipe that runs `uname -a`                                           |
+| `inventory.ts`       | An example inventory with one host                                              |
+| `ignition.config.ts` | Project configuration                                                           |
+| `package.json`       | Created if missing; otherwise updated to add `@grovemotorco/ignition` if needed |
 
 ## Project layout
 
@@ -40,7 +40,8 @@ Recipes, inventories, and templates are all plain TypeScript files. Organize the
 
 ## Configuration file
 
-`ignition.config.ts` sets project-level defaults so you don't have to pass them on every command:
+`ignition.config.ts` currently sets defaults for `ignition run`, so you don't have to repeat the
+same `run` flags:
 
 ```typescript
 import type { IgnitionConfig } from "@grovemotorco/ignition"
@@ -62,6 +63,9 @@ With this config, you can run:
 # After:
 ignition run deploy.ts @web
 ```
+
+Other commands such as `ignition inventory` and `ignition dashboard` still use their own explicit
+flags and arguments.
 
 CLI flags always override config file values. See [Configuration](/docs/guides/configuration) for all available options.
 

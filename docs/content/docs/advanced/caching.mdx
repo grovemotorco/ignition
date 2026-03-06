@@ -35,34 +35,13 @@ Each cache entry is keyed by:
 - Hostname, port, user
 - Resource type and name
 - Serialized input (deterministic JSON)
-- Tool version (auto-invalidates on upgrade)
+- Internal cache version constant (`CACHE_VERSION`), bumped manually when cache semantics change
 
 This means the cache only hits when the exact same resource with the exact same input is checked against the same host.
 
-## Cache backends
+## Cache storage
 
-### Memory cache
-
-In-memory cache that lives for the duration of the process. Useful for library usage:
-
-```typescript
-import { MemoryCheckResultCache } from "@grovemotorco/ignition"
-
-const cache = new MemoryCheckResultCache({ ttlMs: 300_000 })
-```
-
-### File cache
-
-Persists to disk as JSON at `.ignition/check-cache.json`. This is what the CLI uses with `--cache`:
-
-```typescript
-import { FileCheckResultCache } from "@grovemotorco/ignition"
-
-const cache = new FileCheckResultCache({
-  ttlMs: 600_000,
-  path: ".ignition/check-cache.json",
-})
-```
+Cache entries are persisted to disk as JSON at `.ignition/check-cache.json`. This file is created automatically when `--cache` is enabled.
 
 ## Limitations
 

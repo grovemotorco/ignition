@@ -4,7 +4,7 @@ description: Complete reference for all Ignition CLI commands and options.
 ---
 
 ```
-ignition <command> [options]
+ignition <command>
 ```
 
 ## Commands
@@ -24,7 +24,7 @@ ignition run <recipe> <targets> [options]
 
 ### `inventory`
 
-List hosts from an inventory file.
+Load and print an inventory file.
 
 ```bash
 ignition inventory [file] [options]
@@ -36,10 +36,10 @@ ignition inventory [file] [options]
 
 Options:
 
-| Flag                 | Default | Description                          |
-| -------------------- | ------- | ------------------------------------ |
-| `--inventory <file>` | —       | Path to inventory file (alternative) |
-| `--trace`            | `false` | Enable detailed output               |
+| Flag                 | Default | Description                                      |
+| -------------------- | ------- | ------------------------------------------------ |
+| `--inventory <file>` | —       | Path to inventory file (alternative)             |
+| `--trace`            | `false` | Accepted by the CLI, but currently has no effect |
 
 ### `init`
 
@@ -49,7 +49,8 @@ Scaffold a new Ignition project in the current directory.
 ignition init
 ```
 
-Creates `recipe.ts`, `inventory.ts`, `ignition.config.ts`, and `package.json` (if missing).
+Creates `recipe.ts`, `inventory.ts`, and `ignition.config.ts`, ensures `package.json` exists, and
+adds `@grovemotorco/ignition` if needed.
 
 ### `dashboard`
 
@@ -85,6 +86,16 @@ Subcommands:
 | `inventory`       | Inventory file schema        |
 | `output`          | Run output contract schema   |
 
+## Built-in Commands
+
+These also appear in current CLI help because they come from the underlying CLI framework:
+
+| Command       | Description                        |
+| ------------- | ---------------------------------- |
+| `completions` | Generate shell completion script   |
+| `mcp add`     | Register Ignition as an MCP server |
+| `skills add`  | Sync generated skill files         |
+
 ## Options for `run`
 
 ### Dry-run
@@ -104,23 +115,29 @@ Subcommands:
 
 ### Execution options
 
-| Flag                      | Default     | Description                             |
-| ------------------------- | ----------- | --------------------------------------- |
-| `--error-mode <mode>`     | `fail-fast` | `fail-fast`, `fail-at-end`, or `ignore` |
-| `--tags <tags>`           | —           | Filter resources by tag (repeatable)    |
-| `--var <key=value>`       | —           | Set a variable (repeatable)             |
-| `--confirm`               | —           | Prompt before applying                  |
-| `--parallelism <n>`       | `5`         | Max concurrent hosts                    |
-| `--host-timeout <ms>`     | `0`         | Per-host timeout (0 = unlimited)        |
-| `--resource-timeout <ms>` | `30000`     | Per-resource timeout                    |
-| `--retries <n>`           | `2`         | Retry attempts for transient failures   |
-| `--retry-delay <ms>`      | `1000`      | Initial retry backoff                   |
+| Flag                      | Default     | Description                                |
+| ------------------------- | ----------- | ------------------------------------------ |
+| `--error-mode <mode>`     | `fail-fast` | `fail-fast`, `fail-at-end`, or `ignore`    |
+| `--tags <tag>`            | —           | Filter recipes by `meta.tags` (repeatable) |
+| `--var <key=value>`       | —           | Set a variable (repeatable)                |
+| `--confirm`               | —           | Prompt before applying                     |
+| `--parallelism <n>`       | `5`         | Max concurrent hosts                       |
+| `--host-timeout <ms>`     | `0`         | Per-host timeout (0 = unlimited)           |
+| `--resource-timeout <ms>` | `30000`     | Per-resource timeout                       |
+| `--retries <n>`           | `2`         | Retry attempts for transient failures      |
+| `--retry-delay <ms>`      | `1000`      | Initial retry backoff                      |
 
 ### Output options
 
 | Flag      | Default | Description                           |
 | --------- | ------- | ------------------------------------- |
 | `--trace` | —       | Show SSH commands and detailed output |
+
+`--tags` currently matches the recipe module's `export const meta = { tags: [...] }`. Repeat the flag instead of comma-joining values:
+
+```bash
+ignition run deploy.ts @web --tags web --tags deploy
+```
 
 ### Cache options
 
@@ -145,19 +162,26 @@ Subcommands:
 
 ## Global options
 
-| Flag        | Description                                           |
-| ----------- | ----------------------------------------------------- |
-| `--version` | Print version and exit                                |
-| `--help`    | Show help                                             |
-| `--format`  | Output format (`toon`, `json`, `yaml`, `md`, `jsonl`) |
-| `--json`    | Shorthand for `--format json`                         |
+| Flag                                     | Description                         |
+| ---------------------------------------- | ----------------------------------- |
+| `--filter-output <keys>`                 | Filter output by key paths          |
+| `--format <toon\|json\|yaml\|md\|jsonl>` | Output format                       |
+| `--help`                                 | Show help                           |
+| `--llms`                                 | Print the LLM-readable manifest     |
+| `--mcp`                                  | Start as an MCP stdio server        |
+| `--schema`                               | Show JSON Schema for a command      |
+| `--token-count`                          | Print token count instead of output |
+| `--token-limit <n>`                      | Limit output to `n` tokens          |
+| `--token-offset <n>`                     | Skip the first `n` tokens           |
+| `--verbose`                              | Show the full output envelope       |
+| `--version`                              | Print version and exit              |
 
 ## Exit codes
 
-| Code | Meaning                                |
-| ---- | -------------------------------------- |
-| `0`  | Success — all resources ok or changed  |
-| `1`  | Failure — one or more resources failed |
+| Code | Meaning                                                        |
+| ---- | -------------------------------------------------------------- |
+| `0`  | Success — command completed successfully                       |
+| `1`  | Failure — resource failures or other CLI/config/runtime errors |
 
 ## Environment variables
 

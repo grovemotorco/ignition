@@ -41,6 +41,7 @@ The `service` resource is mixed — `started` and `stopped` are declarative (the
 Use `createResources(ctx)` to get bound resource functions:
 
 ```typescript
+import type { ExecutionContext } from "@grovemotorco/ignition"
 import { createResources } from "@grovemotorco/ignition"
 
 export default async function (ctx: ExecutionContext) {
@@ -83,12 +84,12 @@ Pass metadata as the second argument to tag, identify, or annotate resource call
 await apt({ name: "nginx", state: "present" }, { tags: ["web"], id: "install-nginx" })
 ```
 
-| Field            | Type       | Purpose                                      |
-| ---------------- | ---------- | -------------------------------------------- |
-| `tags`           | `string[]` | Call-level labels for programmatic filtering |
-| `id`             | `string`   | Unique identifier for this call              |
-| `notify`         | `string[]` | Notification labels (for future use)         |
-| `sensitivePaths` | `string[]` | Fields to redact in logs                     |
+| Field            | Type       | Purpose                                                        |
+| ---------------- | ---------- | -------------------------------------------------------------- |
+| `tags`           | `string[]` | Call-level labels for programmatic filtering                   |
+| `id`             | `string`   | Unique identifier for this call                                |
+| `notify`         | `string[]` | Notification labels (for future use)                           |
+| `sensitivePaths` | `string[]` | Redaction hints; not automatically enforced by the current CLI |
 
 CLI `--tags` filtering applies to recipe `meta.tags`, not per-resource call metadata.
 
@@ -96,14 +97,17 @@ CLI `--tags` filtering applies to recipe `meta.tags`, not per-resource call meta
 
 Every resource follows a two-phase cycle managed by `executeResource()`:
 
-1. **`check()`** — read-only, no side effects. Returns whether the resource is in the desired state.
+1. **`check()`** — inspects current state and decides whether changes are needed. Most built-in resources keep this read-only, but guarded `exec` currently runs its guard command during `check()`.
 2. **`apply()`** — mutating. Only called if `check()` returned `inDesiredState: false` and the mode is `apply`.
 
 This gives you:
 
-- **Free dry-runs** — `ignition run --check` runs `check()` for every resource without calling `apply()`
+- **Dry-runs skip apply** — `ignition run --check` runs `check()` for every resource without calling `apply()`, but guarded `exec` still runs its guard command during `check()`
 - **Safe re-runs** — if everything is already correct, nothing changes
 - **Explicit failures** — any resource that can't converge reports `failed`
+
+If you need strictly side-effect-free dry-runs, keep your `check()` logic and any `exec`
+guards read-only.
 
 For the full API of each resource, see the individual reference pages:
 

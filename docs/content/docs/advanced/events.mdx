@@ -1,33 +1,11 @@
 ---
 title: Event System
-description: The EventBus, event types, NDJSON streaming, and log sinks.
+description: Event types, NDJSON streaming, and log sinks.
 ---
 
-Ignition uses an event pipeline for observability. Every significant action during a run emits a structured event that reporters, the dashboard, and log sinks consume.
+Ignition has an event pipeline for observability. When an `EventBus` is attached, significant actions during a run emit structured events that the dashboard and NDJSON log sinks can consume.
 
-## EventBus
-
-The `EventBus` is the central event dispatcher:
-
-```typescript
-import { EventBus } from "@grovemotorco/ignition"
-
-const bus = new EventBus()
-
-const unsubscribe = bus.on((event) => {
-  console.log(`[${event.type}]`, event.timestamp, event)
-})
-
-// Pass to runRecipe
-const summary = await runRecipe({
-  // ...
-  eventBus: bus,
-})
-
-unsubscribe()
-```
-
-Each event bus generates a unique `runId` (12 hex chars) for correlation. All events within a run share this ID.
+In the current CLI, an `EventBus` is created when dashboard streaming is active or when `--log-dir` is set. Plain terminal reporters still render directly and do not currently consume the event stream.
 
 ## Event types
 
@@ -73,87 +51,24 @@ interface BaseEvent {
 }
 ```
 
-## Subscribing to events
+Each run generates a unique `runId` (12 hex chars) for correlation. All events within a run share this ID.
 
-Register listeners with `bus.on()`:
+## NDJSON log files
 
-```typescript
-const bus = new EventBus()
-
-bus.on((event) => {
-  switch (event.type) {
-    case "resource_finished":
-      if (event.status === "failed") {
-        console.error(`FAILED: ${event.resourceType} ${event.resourceName}`)
-      }
-      break
-    case "run_finished":
-      console.log(`Run complete in ${event.durationMs}ms`)
-      break
-  }
-})
-```
-
-`bus.on()` returns an unsubscribe function.
-
-## NDJSON streaming
-
-`NdjsonStream` serializes events as newline-delimited JSON:
-
-```typescript
-import { EventBus, NdjsonStream } from "@grovemotorco/ignition"
-
-const bus = new EventBus()
-const stream = new NdjsonStream({
-  writeSync: (p: Uint8Array) => {
-    process.stdout.write(p)
-    return p.length
-  },
-})
-
-bus.on(stream.listener)
-```
-
-Each line is a complete JSON object followed by a newline. This format is compatible with tools like `jq`:
-
-```bash
-jq -r ".type" ./logs/*.ndjson
-```
-
-## File log sink
-
-`FileLogSink` powers the CLI `--log-dir` option and writes NDJSON events to timestamped log files:
+Use `--log-dir` to write events as newline-delimited JSON:
 
 ```bash
 ignition run deploy.ts @web --log-dir ./logs
 ```
 
-This creates files like `logs/2026-03-02T14-22-08Z_a1b2c3d4e5f6.ndjson`.
+This creates files like `logs/2026-03-02T14-22-08Z_a1b2c3d4e5f6.ndjson`. Each line is a complete JSON object. This format is compatible with tools like `jq`:
 
-## Building a custom event consumer
+```bash
+# Show all event types
+jq -r ".type" ./logs/*.ndjson
 
-Example: send Slack notifications on failures:
-
-```typescript
-import { EventBus } from "@grovemotorco/ignition"
-import type { LifecycleEvent } from "@grovemotorco/ignition"
-
-function slackNotifier(webhookUrl: string) {
-  return (event: LifecycleEvent) => {
-    if (event.type === "run_finished" && event.hasFailures) {
-      fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: `Ignition run failed after ${event.durationMs}ms`,
-        }),
-      })
-    }
-  }
-}
-
-const bus = new EventBus()
-bus.on(slackNotifier("https://hooks.slack.com/..."))
+# Show only failures
+jq 'select(.type == "resource_finished" and .status == "failed")' ./logs/*.ndjson
 ```
 
 ## Event flow diagram

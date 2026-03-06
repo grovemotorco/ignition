@@ -5,7 +5,7 @@
  * then removes everything. No permanent server changes.
  *
  * Usage:
- *   ignition check examples/file-roundtrip.ts admin@10.0.1.5
+ *   ignition run --check examples/file-roundtrip.ts admin@10.0.1.5
  *   ignition run   examples/file-roundtrip.ts admin@10.0.1.5
  *
  *   # Pass custom vars:

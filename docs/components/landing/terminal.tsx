@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-interface TerminalLine {
+type TerminalLine = {
   text: string
   className?: string
   delay: number

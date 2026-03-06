@@ -2,14 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 
-const methods = [
-  { label: "bun", command: "bun add -g @grovemotorco/ignition" },
-  { label: "npm", command: "npm install -g @grovemotorco/ignition" },
-  { label: "npx", command: "npx @grovemotorco/ignition" },
-  { label: "pnpm", command: "pnpm add -g @grovemotorco/ignition" },
-  { label: "curl", command: "curl -fsSL https://ignition.dev/install | sh" },
-  { label: "brew", command: "brew install grovemotorco/tap/ignition" },
-] as const
+const methods = [{ label: "bun", command: "bun install -g @grovemotorco/ignition" }] as const
 
 export function InstallCommand() {
   const [selected, setSelected] = useState(0)

@@ -30,7 +30,7 @@ Use it with the `file` resource:
 await file({
   path: "/etc/nginx/sites-available/app.conf",
   template: nginxConf,
-  mode: "644",
+  mode: "0644",
 })
 ```
 
@@ -90,7 +90,7 @@ export default async function (ctx: ExecutionContext) {
   await file({
     path: "/etc/nginx/sites-available/app.conf",
     template: nginxSiteConf,
-    mode: "644",
+    mode: "0644",
   })
 }
 ```

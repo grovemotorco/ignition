@@ -3,7 +3,7 @@ title: file
 description: Manage file contents, permissions, and ownership.
 ---
 
-The `file` resource manages files on remote hosts. It compares content using SHA-256 checksums and is declarative and idempotent.
+The `file` resource manages files on remote hosts. For `content` and `template` modes it compares content using SHA-256 checksums. `source` mode currently transfers the local file during `apply()`, but `check()` does not hash the local source file.
 
 ## Input
 
@@ -13,12 +13,12 @@ The `file` resource manages files on remote hosts. It compares content using SHA
 | `content`  | `string`                            | —           | No       | Inline file content              |
 | `source`   | `string`                            | —           | No       | Local file path to copy via SCP  |
 | `template` | `(vars: TemplateContext) => string` | —           | No       | Template function                |
-| `mode`     | `string`                            | —           | No       | File mode (e.g. `"644"`)         |
+| `mode`     | `string`                            | —           | No       | File mode (e.g. `"0644"`)        |
 | `owner`    | `string`                            | —           | No       | File owner                       |
 | `group`    | `string`                            | —           | No       | File group                       |
 | `state`    | `"present" \| "absent"`             | `"present"` | No       | Whether the file should exist    |
 
-To create or replace content, use exactly one of `content`, `source`, or `template`.  
+To avoid ambiguous behavior, pass only one of `content`, `source`, or `template`. The current precedence is `content`, then `template`, then `source`.
 If you're only managing attributes (`mode`, `owner`, `group`), the file must already exist.
 
 ## Output
@@ -33,7 +33,7 @@ If you're only managing attributes (`mode`, `owner`, `group`), the file must alr
 
 ### Content modes
 
-The `file` resource supports three mutually exclusive content modes:
+Treat the three content modes as mutually exclusive:
 
 | Mode       | Source            | Transfer method                                |
 | ---------- | ----------------- | ---------------------------------------------- |
@@ -45,8 +45,9 @@ The `file` resource supports three mutually exclusive content modes:
 
 1. Tests file existence with `test -f`.
 2. For `state: "absent"` — in desired state if the file doesn't exist.
-3. For `state: "present"` — computes SHA-256 of the remote file content with `sha256sum` and compares against the expected content.
-4. Checks file mode, owner, and group via `stat` if specified.
+3. For `state: "present"` — for `content` and `template`, computes SHA-256 of the remote file content with `sha256sum` and compares against the expected content.
+4. For `source`, checks existence and attributes, but does not currently compare the remote file against the local source checksum.
+5. Checks file mode, owner, and group via `stat` if specified.
 
 ### Apply phase
 
@@ -56,13 +57,13 @@ The `file` resource supports three mutually exclusive content modes:
 
 ## Annotations
 
-| Property              | Value                                  |
-| --------------------- | -------------------------------------- |
-| Nature                | Declarative                            |
-| Idempotent            | Yes                                    |
-| Destructive           | Yes (when `state: "absent"`)           |
-| Read-only             | No                                     |
-| Required capabilities | `exec`, `transfer` (for `source` mode) |
+| Property              | Value                                                                 |
+| --------------------- | --------------------------------------------------------------------- |
+| Nature                | Declarative                                                           |
+| Idempotent            | Yes for `content`/`template`; `source` has a current check limitation |
+| Destructive           | Yes (when `state: "absent"`)                                          |
+| Read-only             | No                                                                    |
+| Required capabilities | `exec`; `source` also needs `transfer` during apply                   |
 
 ## Examples
 
@@ -72,7 +73,7 @@ The `file` resource supports three mutually exclusive content modes:
 await file({
   path: "/etc/app.conf",
   content: "key=value\nport=8080\n",
-  mode: "644",
+  mode: "0644",
 })
 ```
 
@@ -86,7 +87,7 @@ server {
     listen ${vars.port ?? 80};
     server_name ${vars.domain};
 }`,
-  mode: "644",
+  mode: "0644",
 })
 ```
 
@@ -96,12 +97,14 @@ server {
 await file({
   path: "/opt/app/config.json",
   source: "./configs/production.json",
-  mode: "600",
+  mode: "0600",
   owner: "app",
 })
 ```
 
 This uses `scp` to transfer the file and requires the `transfer` transport capability.
+
+Current limitation: source-mode changes are not detected by `check()` via a local checksum. If only the local file contents change, Ignition may still report `ok`.
 
 ### Remove a file
 
@@ -115,7 +118,7 @@ await file({ path: "/tmp/old-config.conf", state: "absent" })
 await file({
   path: "/var/log/app.log",
   content: "",
-  mode: "640",
+  mode: "0640",
   owner: "app",
   group: "app",
 })
@@ -123,8 +126,8 @@ await file({
 
 ## Gotchas
 
-- To create a missing file, set exactly one of `content`, `source`, or `template`.
+- For predictable behavior, pass exactly one of `content`, `source`, or `template`.
 - `source` mode requires the `transfer` capability (uses `scp`). The other modes only need `exec`.
 - Templates receive `ctx.vars` — the merged variables from inventory, CLI `--var` flags, and recipe-set variables.
-- SHA-256 comparison means even whitespace-only changes are detected.
-- The `mode` field should be an octal string like `"644"`, not a number.
+- SHA-256 comparison applies to `content` and `template`. `source` mode does not currently compare the local file checksum during `check()`.
+- The `mode` field should be an octal string like `"0644"`, not a number.

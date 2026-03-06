@@ -6,7 +6,7 @@
  *
  * Usage:
  *   ignition run   examples/dev-environment.ts root@10.0.1.5
- *   ignition check examples/dev-environment.ts root@10.0.1.5
+ *   ignition run --check examples/dev-environment.ts root@10.0.1.5
  *
  *   # Specify a dev user:
  *   ignition run examples/dev-environment.ts root@10.0.1.5 --var dev_user=dev

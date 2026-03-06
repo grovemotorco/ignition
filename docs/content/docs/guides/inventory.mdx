@@ -104,13 +104,15 @@ ignition run deploy.ts @web,admin@10.0.0.5 --inventory hosts.ts
 
 ## Inspecting the inventory
 
-List hosts in an inventory file:
+Load an inventory file:
 
 ```bash
 ignition inventory hosts.ts
 ```
 
-This shows all hosts with their resolved connection details and variables.
+This prints the inventory object as loaded from disk. It does not currently expand defaults, group vars, and host overrides into fully resolved target records.
+
+If you need to inspect target resolution today, run `ignition run ... --trace` against the targets you care about. The `inventory` command's `--trace` flag is currently accepted by the CLI but does not add extra output.
 
 ## Multi-tier example
 

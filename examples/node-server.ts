@@ -7,7 +7,7 @@
  *
  * Usage:
  *   ignition run   examples/node-server.ts root@10.0.1.5 --var app_name=myapp --var domain=myapp.example.com
- *   ignition check examples/node-server.ts root@10.0.1.5
+ *   ignition run --check examples/node-server.ts root@10.0.1.5
  *
  *   # With inventory:
  *   ignition run   examples/node-server.ts @web -i examples/inventory.ts

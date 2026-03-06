@@ -10,7 +10,7 @@ The `directory` resource ensures directories exist (or are absent) with the corr
 | Field       | Type                    | Default     | Required | Description                           |
 | ----------- | ----------------------- | ----------- | -------- | ------------------------------------- |
 | `path`      | `string`                | —           | Yes      | Absolute path to the directory        |
-| `mode`      | `string`                | —           | No       | Directory mode (e.g. `"755"`)         |
+| `mode`      | `string`                | —           | No       | Directory mode (e.g. `"0755"`)        |
 | `owner`     | `string`                | —           | No       | Owner user                            |
 | `group`     | `string`                | —           | No       | Owner group                           |
 | `state`     | `"present" \| "absent"` | `"present"` | No       | Whether the directory should exist    |
@@ -55,7 +55,7 @@ await directory({
   path: "/var/www/app",
   owner: "www-data",
   group: "www-data",
-  mode: "755",
+  mode: "0755",
 })
 ```
 
@@ -88,5 +88,5 @@ await directory({ path: "/tmp/old-deploy", state: "absent" })
 - `recursive` defaults to `true`, meaning `mkdir -p` is used by default.
 - Set `recursive: false` to fail if parent directories don't exist.
 - `state: "absent"` runs `rm -rf` on the path. Use with care.
-- `mode` should be a string matching `stat -c %a` output (for example `"755"`), not a number.
+- `mode` should be an octal string like `"0755"`, not a number.
 - `owner` and `group` are set independently — you can set one without the other.

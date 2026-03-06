@@ -1,18 +1,30 @@
 ---
 title: TypeScript Types
-description: Key types and interfaces exported by Ignition.
+description: Key exported and internal types used by Ignition.
 ---
 
-All types are importable from `@grovemotorco/ignition`.
+This page mixes two scopes:
+
+- Types currently exported from the package root
+- Internal runtime types documented from the current source tree
+
+Only the following types are currently importable from `@grovemotorco/ignition`:
 
 ```typescript
 import type {
   ExecutionContext,
-  ResourceResult,
+  TemplateContext,
   Inventory,
-  RunSummary,
+  InventoryDefaults,
+  InventoryModule,
+  Host,
+  HostGroup,
+  ResolvedHost,
+  IgnitionConfig,
 } from "@grovemotorco/ignition"
 ```
+
+Everything else below reflects the current implementation for contributors and advanced readers. Those types are not currently re-exported from the package root.
 
 ## Core types
 
@@ -36,7 +48,7 @@ The per-host execution context passed to recipes. Carries the connection, mode, 
 | `cache`             | `CheckResultCache \| undefined`        | Check result cache                            |
 | `resourcePolicy`    | `Partial<ResourcePolicy> \| undefined` | Timeout and retry configuration               |
 | `eventBus`          | `EventBus \| undefined`                | Event pipeline                                |
-| `resourceTags`      | `readonly string[] \| undefined`       | Active tag filter                             |
+| `resourceTags`      | `string[] \| undefined`                | Active tag filter                             |
 | `hostCorrelationId` | `CorrelationId \| undefined`           | Host correlation ID for event telemetry       |
 | `redactionPolicy`   | `RedactionPolicy \| undefined`         | Redaction policy for sensitive data           |
 
@@ -101,24 +113,24 @@ Returned by a resource's `check()` method.
 
 The contract for implementing a resource.
 
-| Field        | Type                                            | Description                        |
-| ------------ | ----------------------------------------------- | ---------------------------------- |
-| `type`       | `string`                                        | Unique lowercase identifier        |
-| `schema`     | `ResourceSchema \| undefined`                   | Machine-readable schema            |
-| `formatName` | `(input: TInput) => string`                     | Human-readable name (pure, no I/O) |
-| `check`      | `(ctx, input) => Promise<CheckResult<TOutput>>` | Read-only state check              |
-| `apply`      | `(ctx, input) => Promise<TOutput>`              | Mutating convergence               |
+| Field        | Type                                            | Description                            |
+| ------------ | ----------------------------------------------- | -------------------------------------- |
+| `type`       | `string`                                        | Unique lowercase identifier            |
+| `schema`     | `ResourceSchema \| undefined`                   | Machine-readable schema                |
+| `formatName` | `(input: TInput) => string`                     | Human-readable name (pure, no I/O)     |
+| `check`      | `(ctx, input) => Promise<CheckResult<TOutput>>` | Check phase; should avoid side effects |
+| `apply`      | `(ctx, input) => Promise<TOutput>`              | Mutating convergence                   |
 
 ### `ResourceCallMeta`
 
 Optional metadata for resource calls.
 
-| Field            | Type                             | Description            |
-| ---------------- | -------------------------------- | ---------------------- |
-| `tags`           | `readonly string[] \| undefined` | Tags for filtering     |
-| `id`             | `string \| undefined`            | Unique call identifier |
-| `notify`         | `readonly string[] \| undefined` | Notification labels    |
-| `sensitivePaths` | `readonly string[] \| undefined` | Fields to redact       |
+| Field            | Type                    | Description                                                    |
+| ---------------- | ----------------------- | -------------------------------------------------------------- |
+| `tags`           | `string[] \| undefined` | Tags for filtering                                             |
+| `id`             | `string \| undefined`   | Unique call identifier                                         |
+| `notify`         | `string[] \| undefined` | Notification labels                                            |
+| `sensitivePaths` | `string[] \| undefined` | Redaction hints; not automatically enforced by the current CLI |
 
 ### `ResourcePolicy`
 
@@ -182,10 +194,10 @@ type RecipeFunction = (ctx: ExecutionContext) => Promise<void>
 
 ### `RecipeMeta`
 
-| Field         | Type                             | Description                |
-| ------------- | -------------------------------- | -------------------------- |
-| `description` | `string \| undefined`            | Human-readable description |
-| `tags`        | `readonly string[] \| undefined` | Tags for filtering         |
+| Field         | Type                    | Description                |
+| ------------- | ----------------------- | -------------------------- |
+| `description` | `string \| undefined`   | Human-readable description |
+| `tags`        | `string[] \| undefined` | Tags for filtering         |
 
 ## Run summary types
 

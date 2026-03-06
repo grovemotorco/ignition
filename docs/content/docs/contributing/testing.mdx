@@ -55,12 +55,13 @@ bun test tests/resources/
 bun test tests/output/
 ```
 
-### Dashboard socket tests
+### Dashboard tests
 
-Require a real WebSocket server. Skipped by default:
+These are normal Bun tests with fake sockets and server harnesses. They already run under
+`bun run test`; run them directly when iterating:
 
 ```bash
-IGNITION_RUN_DASHBOARD_TESTS=1 bun test tests/dashboard/
+bun test tests/dashboard/
 ```
 
 ### Sandbox integration tests

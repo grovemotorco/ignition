@@ -6,7 +6,7 @@
  *
  * Usage:
  *   ignition run   examples/node-app.ts @web -i examples/inventory.ts --var app_name=myapp --var app_port=3000
- *   ignition check examples/node-app.ts @web -i examples/inventory.ts
+ *   ignition run --check examples/node-app.ts @web -i examples/inventory.ts
  */
 
 import type { ExecutionContext, TemplateContext } from "../src/core/types.ts"

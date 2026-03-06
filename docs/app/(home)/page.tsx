@@ -4,7 +4,15 @@ import { TerminalFrame } from "@/components/landing/terminal-frame"
 import { InstallCommand } from "@/components/landing/install-command"
 import { RecipeCode } from "@/components/landing/recipe-code"
 import { HeroToggle } from "@/components/landing/hero-toggle"
-import { Server, Shield, TerminalSquare, Repeat, LayoutDashboard, Zap } from "lucide-react"
+import {
+  Server,
+  Shield,
+  TerminalSquare,
+  Repeat,
+  LayoutDashboard,
+  Zap,
+  FlaskConical,
+} from "lucide-react"
 
 const checkOutput = [
   { text: "$ ignition run --check deploy.ts admin@web-1", cls: "text-white font-semibold" },
@@ -60,6 +68,23 @@ const features = [
 export default function HomePage() {
   return (
     <main className="flex flex-col flex-1">
+      {/* Experimental banner */}
+      <div className="border-b border-brand/20 bg-brand/5">
+        <div className="mx-auto max-w-250 flex items-center justify-center gap-2 px-4 py-2.5 text-sm">
+          <FlaskConical className="size-4 text-brand shrink-0" />
+          <span className="text-fd-muted-foreground">
+            Ignition is <span className="font-medium text-fd-foreground">experimental</span> and
+            under active development.{" "}
+            <a
+              href="https://github.com/grovemotorco/ignition"
+              className="text-brand underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              Follow along on GitHub.
+            </a>
+          </span>
+        </div>
+      </div>
+
       {/* Hero */}
       <section className="px-4 pt-20 pb-16 md:px-8 md:pt-28 md:pb-24">
         <div className="mx-auto max-w-250 text-center">
@@ -195,13 +220,23 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-fd-background/40 dark:bg-fd-background/50 pointer-events-none" />
               <div className="relative z-10 p-4 md:p-6">
                 <div className="overflow-hidden border border-(--frame-border)">
-                  <Image
+                  {/* <Image
                     src="/media/dashboard-run.gif"
                     alt="Ignition dashboard showing a live provisioning run"
-                    width={800}
-                    height={500}
+                    width={1280}
+                    height={720}
                     className="w-full h-auto"
                     unoptimized
+                  /> */}
+                  <video
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    width={1280}
+                    height={720}
+                    className="w-full h-auto"
+                    src="/media/dashboard-run.mp4"
                   />
                 </div>
               </div>
@@ -236,57 +271,61 @@ export default function HomePage() {
 
       {/* Comparison */}
       <section className="px-4 py-20 md:px-8 lg:px-12 border-t border-fd-border">
-        <div className="mx-auto max-w-200 text-center">
+        <div className="mx-auto max-w-250">
           <h2 className="text-2xl font-bold text-center mb-2 md:text-3xl">How It Compares</h2>
           <p className="text-fd-muted-foreground text-center mb-12 max-w-lg mx-auto">
-            Because Claude loves making these tables. Mostly accurate.
+            You should probably use Ansible.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+          <div className="overflow-x-auto border border-fd-border">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-fd-border text-fd-muted-foreground">
-                  <th className="pb-3 pr-4 font-medium" />
-                  <th className="pb-3 px-4 font-medium text-brand">Ignition</th>
-                  <th className="pb-3 px-4 font-medium">Ansible</th>
-                  <th className="pb-3 px-4 font-medium">Chef / Puppet</th>
+                <tr className="border-b border-fd-border bg-fd-card/60 text-fd-muted-foreground">
+                  <th className="py-3.5 px-5 text-left font-medium w-[180px]" />
+                  <th className="py-3.5 px-5 text-center font-semibold text-brand">Ignition</th>
+                  <th className="py-3.5 px-5 text-center font-medium">Ansible</th>
+                  <th className="py-3.5 px-5 text-center font-medium">Chef / Puppet</th>
                 </tr>
               </thead>
               <tbody className="text-fd-foreground/90">
-                <tr className="border-b border-fd-border/50">
-                  <td className="py-3 pr-4 font-medium">Production Ready</td>
-                  <td className="py-3 px-4 text-brand font-medium">Alpha</td>
-                  <td className="py-3 px-4">Yes</td>
-                  <td className="py-3 px-4">Does anyone still use it?</td>
+                <tr className="border-b border-fd-border/40 hover:bg-fd-accent/30 transition-colors">
+                  <td className="py-3.5 px-5 font-medium text-left">Production Ready</td>
+                  <td className="py-3.5 px-5 text-center text-brand font-medium">Experimental</td>
+                  <td className="py-3.5 px-5 text-center">Yes</td>
+                  <td className="py-3.5 px-5 text-center text-fd-muted-foreground italic">
+                    Does anyone still use it?
+                  </td>
                 </tr>
-                <tr className="border-b border-fd-border/50">
-                  <td className="py-3 pr-4 font-medium">Language</td>
-                  <td className="py-3 px-4 text-brand font-medium">TypeScript</td>
-                  <td className="py-3 px-4">YAML</td>
-                  <td className="py-3 px-4">Ruby / DSL</td>
+                <tr className="border-b border-fd-border/40 hover:bg-fd-accent/30 transition-colors">
+                  <td className="py-3.5 px-5 font-medium text-left">Language</td>
+                  <td className="py-3.5 px-5 text-center text-brand font-medium">TypeScript</td>
+                  <td className="py-3.5 px-5 text-center">YAML</td>
+                  <td className="py-3.5 px-5 text-center">Ruby / DSL</td>
                 </tr>
-                <tr className="border-b border-fd-border/50">
-                  <td className="py-3 pr-4 font-medium">Agent required</td>
-                  <td className="py-3 px-4">No (SSH)</td>
-                  <td className="py-3 px-4">No (SSH)</td>
-                  <td className="py-3 px-4">Yes</td>
+                <tr className="border-b border-fd-border/40 hover:bg-fd-accent/30 transition-colors">
+                  <td className="py-3.5 px-5 font-medium text-left">Agent required</td>
+                  <td className="py-3.5 px-5 text-center">No (SSH)</td>
+                  <td className="py-3.5 px-5 text-center">No (SSH)</td>
+                  <td className="py-3.5 px-5 text-center">Yes</td>
                 </tr>
-                <tr className="border-b border-fd-border/50">
-                  <td className="py-3 pr-4 font-medium">State files</td>
-                  <td className="py-3 px-4">None</td>
-                  <td className="py-3 px-4">None</td>
-                  <td className="py-3 px-4">Server-side</td>
+                <tr className="border-b border-fd-border/40 hover:bg-fd-accent/30 transition-colors">
+                  <td className="py-3.5 px-5 font-medium text-left">State files</td>
+                  <td className="py-3.5 px-5 text-center">None</td>
+                  <td className="py-3.5 px-5 text-center">None</td>
+                  <td className="py-3.5 px-5 text-center">Server-side</td>
                 </tr>
-                <tr className="border-b border-fd-border/50">
-                  <td className="py-3 pr-4 font-medium">Dry-run</td>
-                  <td className="py-3 px-4">Built-in</td>
-                  <td className="py-3 px-4">--check flag</td>
-                  <td className="py-3 px-4">--why-run</td>
+                <tr className="border-b border-fd-border/40 hover:bg-fd-accent/30 transition-colors">
+                  <td className="py-3.5 px-5 font-medium text-left">Dry-run</td>
+                  <td className="py-3.5 px-5 text-center">Built-in</td>
+                  <td className="py-3.5 px-5 text-center">--check flag</td>
+                  <td className="py-3.5 px-5 text-center">--why-run</td>
                 </tr>
-                <tr>
-                  <td className="py-3 pr-4 font-medium">IDE support</td>
-                  <td className="py-3 px-4 text-brand font-medium">Full (native TS)</td>
-                  <td className="py-3 px-4">Limited</td>
-                  <td className="py-3 px-4">Limited</td>
+                <tr className="hover:bg-fd-accent/30 transition-colors">
+                  <td className="py-3.5 px-5 font-medium text-left">IDE support</td>
+                  <td className="py-3.5 px-5 text-center text-brand font-medium">
+                    Full (native TS)
+                  </td>
+                  <td className="py-3.5 px-5 text-center">Limited</td>
+                  <td className="py-3.5 px-5 text-center">Limited</td>
                 </tr>
               </tbody>
             </table>

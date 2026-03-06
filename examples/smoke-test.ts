@@ -5,11 +5,11 @@
  * No packages installed, no services modified, no permanent changes.
  *
  * Usage:
- *   ignition check examples/smoke-test.ts admin@10.0.1.5
+ *   ignition run --check examples/smoke-test.ts admin@10.0.1.5
  *   ignition run   examples/smoke-test.ts admin@10.0.1.5
  *
  *   # With inventory:
- *   ignition check examples/smoke-test.ts @web -i examples/inventory.ts
+ *   ignition run --check examples/smoke-test.ts @web -i examples/inventory.ts
  *   ignition run   examples/smoke-test.ts @web -i examples/inventory.ts
  */
 

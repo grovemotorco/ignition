@@ -109,7 +109,6 @@ CLI and utilities. The CLI uses the [incur](https://github.com/wevm/incur) frame
 | `cli/commands/inventory.ts` | `inventory` command                                |
 | `cli/commands/dashboard.ts` | `dashboard` command                                |
 | `cli/commands/schema.ts`    | `schema` command group                             |
-| `cli/commands/test.ts`      | Developer fixture commands                         |
 | `lib/types.ts`              | Shared CLI option types                            |
 | `lib/parsers.ts`            | Dashboard address parser                           |
 | `lib/config.ts`             | Config file loading and validation                 |
@@ -135,7 +134,7 @@ The `Transport` interface defines four capabilities (`exec`, `transfer`, `fetch`
 
 ### EventBus architecture
 
-All observability flows through a single event pipeline. Reporters, the dashboard, and log sinks are all event consumers. This decouples output concerns from execution logic.
+The dashboard and NDJSON log sinks consume a shared lifecycle event stream when an `EventBus` is attached. Terminal reporters are still called directly by the runner. This keeps telemetry optional without forcing the TTY output path through the event bus.
 
 ## Extension points
 
