@@ -7,7 +7,7 @@
  *
  * Usage:
  *   ignition run   examples/system-info.ts admin@10.0.1.5
- *   ignition check examples/system-info.ts admin@10.0.1.5
+ *   ignition run --check examples/system-info.ts admin@10.0.1.5
  *
  *   # With inventory:
  *   ignition run examples/system-info.ts @web -i examples/inventory.ts

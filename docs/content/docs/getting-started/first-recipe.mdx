@@ -5,6 +5,8 @@ description: Write a recipe, dry-run it, and apply it to a remote host.
 
 A recipe is a TypeScript file that describes the desired state of a remote host. Let's write one that installs Nginx and deploys a basic page.
 
+This walkthrough assumes a disposable Debian/Ubuntu host and a `root@...` SSH target, or a user that already owns `/var/www/app`. `apt` and `service` use `sudo`, but `file` and `directory` operate as the SSH user.
+
 ## Write the recipe
 
 Create a file called `setup.ts`:
@@ -20,7 +22,7 @@ export default async function (ctx: ExecutionContext) {
   await apt({ name: "nginx", state: "present" })
 
   // Create the web root
-  await directory({ path: "/var/www/app", owner: "www-data", mode: "755" })
+  await directory({ path: "/var/www/app", owner: "www-data", mode: "0755" })
 
   // Deploy a page
   await file({
@@ -47,13 +49,13 @@ Resources run in order. Each one checks the remote state first, then applies cha
 Preview what would change without touching the server:
 
 ```bash
-ignition run --check setup.ts admin@your-server.com
+ignition run --check setup.ts root@your-server.com
 ```
 
 The output shows each resource and whether it would need changes:
 
 ```
-◇ admin@your-server.com
+◇ root@your-server.com
   ✓ apt nginx                        ok          0.8s
   ~ directory /var/www/app           would change 0.2s
   ~ file /var/www/app/index.html     would change 0.3s
@@ -68,11 +70,11 @@ The output shows each resource and whether it would need changes:
 Apply the recipe:
 
 ```bash
-ignition run setup.ts admin@your-server.com
+ignition run setup.ts root@your-server.com
 ```
 
 ```
-◇ admin@your-server.com
+◇ root@your-server.com
   ✓ apt nginx                        ok       0.8s
   ✓ directory /var/www/app           changed  0.3s
   ✓ file /var/www/app/index.html     changed  0.4s
@@ -87,7 +89,7 @@ ignition run setup.ts admin@your-server.com
 Run the same recipe again:
 
 ```bash
-ignition run setup.ts admin@your-server.com
+ignition run setup.ts root@your-server.com
 ```
 
 Everything reports **ok** — the server is already in the desired state. This is safe to run as many times as you want.

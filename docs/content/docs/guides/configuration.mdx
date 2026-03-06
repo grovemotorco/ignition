@@ -3,7 +3,8 @@ title: Configuration
 description: Project-level configuration with ignition.config.ts.
 ---
 
-Ignition supports an optional configuration file that sets project-level defaults. This avoids passing the same flags on every command.
+Ignition supports an optional configuration file for `ignition run`. This avoids repeating the
+same `run` flags on every invocation.
 
 ## Config file
 
@@ -20,14 +21,16 @@ export default {
 } satisfies IgnitionConfig
 ```
 
-Ignition auto-discovers this file in the current working directory.
+`ignition run` auto-discovers this file in the current working directory. Other commands still use
+their own explicit flags and arguments.
+
+Use an explicit CLI `--format ...` flag when you need machine-readable output. Although `IgnitionConfig` still validates a `format` field internally, the current `run` command does not honor a config-level output-format default.
 
 ## All options
 
 | Field             | Type                                       | Default        | Description                                |
 | ----------------- | ------------------------------------------ | -------------- | ------------------------------------------ |
 | `inventory`       | `string`                                   | —              | Path to inventory file                     |
-| `format`          | `"pretty" \| "json" \| "minimal"`          | `"pretty"`     | Output format (used by library consumers)  |
 | `errorMode`       | `"fail-fast" \| "fail-at-end" \| "ignore"` | `"fail-fast"`  | Error handling strategy                    |
 | `parallelism`     | `number`                                   | `5`            | Max concurrent hosts                       |
 | `hostTimeout`     | `number`                                   | `0`            | Per-host timeout in ms (0 = unlimited)     |
@@ -81,7 +84,7 @@ export default {
   errorMode: "fail-fast",
   parallelism: 20,
   logDir: "./logs",
-  format: "json",
+  hostTimeout: 300000,
 } satisfies IgnitionConfig
 ```
 

@@ -36,6 +36,8 @@ With guards:
 - `unless`: if guard exits `0`, resource is treated as already in desired state (apply is skipped)
 - `onlyIf`: if guard exits non-zero, precondition is not met and apply is skipped
 - `unless` and `onlyIf` are mutually exclusive
+- Guard commands are executed during `check()` itself, including `ignition run --check`, so only
+  use read-only guards if you need dry-run safety
 
 ### Apply phase
 
@@ -116,7 +118,9 @@ const hostname = result.output?.stdout.trim()
 
 - Unguarded `exec` always reports `changed` because it can't determine whether the command mutated state.
 - In check mode (`ignition run --check`), unguarded exec reports as "would change" since it's imperative.
-- Guarded exec (`unless`/`onlyIf`) can report `ok` when the guard condition determines the desired state is already met.
+- `unless` can report `ok` when the guard shows the desired state is already met.
+- `onlyIf` can also report `ok`, but that means the precondition failed and apply was skipped.
+- `unless` and `onlyIf` guards run during `check()` and in `ignition run --check`.
 - Set `check: false` for commands where a non-zero exit code is acceptable (e.g., `grep` returning 1 for no match).
 - `sudo` wraps the entire command with `sudo sh -c '...'` — shell features like pipes and redirects work inside.
 - Command output (stdout/stderr) can be streamed in real time when trace mode is enabled.

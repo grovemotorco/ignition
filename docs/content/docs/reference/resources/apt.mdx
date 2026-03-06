@@ -7,11 +7,11 @@ The `apt` resource manages packages using `apt-get`. It is declarative and idemp
 
 ## Input
 
-| Field    | Type                                | Default     | Required | Description                         |
-| -------- | ----------------------------------- | ----------- | -------- | ----------------------------------- |
-| `name`   | `string \| string[]`                | —           | Yes      | Package name(s) to manage           |
-| `state`  | `"present" \| "absent" \| "latest"` | `"present"` | No       | Target state                        |
-| `update` | `boolean`                           | `false`     | No       | Run `apt-get update` before install |
+| Field    | Type                                | Default     | Required | Description                                    |
+| -------- | ----------------------------------- | ----------- | -------- | ---------------------------------------------- |
+| `name`   | `string \| string[]`                | —           | Yes      | Package name(s) to manage                      |
+| `state`  | `"present" \| "absent" \| "latest"` | `"present"` | No       | Target state                                   |
+| `update` | `boolean`                           | `false`     | No       | Run `apt-get update` before the package action |
 
 ## Output
 
@@ -34,7 +34,7 @@ The `apt` resource manages packages using `apt-get`. It is declarative and idemp
 
 - `present` / `latest`: runs `sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq <packages>`
 - `absent`: runs `sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq <packages>`
-- If `update: true`, runs `sudo apt-get update -qq` first
+- If `update: true`, runs `sudo apt-get update -qq` before the package action
 
 ## Annotations
 
@@ -66,7 +66,8 @@ await apt({ name: ["git", "curl", "htop"], state: "present" })
 await apt({ name: "nginx", state: "present", update: true })
 ```
 
-This runs `apt-get update` before installing, ensuring the package index is current.
+This runs `apt-get update` before the package action. It's most useful before installs or upgrades
+when the package index may be stale.
 
 ### Remove a package
 

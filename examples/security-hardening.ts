@@ -6,7 +6,7 @@
  *
  * Usage:
  *   ignition run   examples/security-hardening.ts @all -i examples/inventory.ts
- *   ignition check examples/security-hardening.ts @all -i examples/inventory.ts
+ *   ignition run --check examples/security-hardening.ts @all -i examples/inventory.ts
  */
 
 import type { ExecutionContext } from "../src/core/types.ts"

@@ -11,16 +11,13 @@ description: How to install Ignition and its prerequisites.
 
 Ignition targets **Debian/Ubuntu** hosts. The `apt` and `service` resources assume `apt-get` and `systemd`.
 
-## Install from source
+## Install
 
 ```bash
-git clone https://github.com/grovemotorco/ignition.git
-cd ignition
-bun install
-bun run scripts/install.ts
+bun install -g @grovemotorco/ignition
 ```
 
-This links the `ignition` binary globally. Verify with:
+Verify with:
 
 ```bash
 ignition --version
@@ -28,16 +25,11 @@ ignition --version
 
 ## Run from source
 
-You can also run Ignition directly without installing globally:
+You can also run Ignition directly from a cloned repository:
 
 ```bash
+git clone https://github.com/grovemotorco/ignition.git
+cd ignition
+bun install
 bun run src/cli.ts run <recipe.ts> <target>
 ```
-
-## Build a standalone executable
-
-```bash
-bun run build:executable
-```
-
-This produces a single-file binary at `dist/ignition` that can be copied to machines of the same OS/architecture without requiring Bun to be installed.

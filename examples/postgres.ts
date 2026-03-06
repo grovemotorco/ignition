@@ -6,7 +6,7 @@
  *
  * Usage:
  *   ignition run   examples/postgres.ts @db -i examples/inventory.ts --var db_name=myapp --var db_user=appuser --var db_password=secret
- *   ignition check examples/postgres.ts @db -i examples/inventory.ts
+ *   ignition run --check examples/postgres.ts @db -i examples/inventory.ts
  */
 
 import type { ExecutionContext, TemplateContext } from "../src/core/types.ts"

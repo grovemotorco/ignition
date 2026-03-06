@@ -53,13 +53,13 @@ At least one of `state` or `enabled` should be provided.
 
 ## Annotations
 
-| Property              | Value                      |
-| --------------------- | -------------------------- |
-| Nature                | Imperative (mixed)         |
-| Idempotent            | No (due to restart/reload) |
-| Destructive           | No                         |
-| Read-only             | No                         |
-| Required capabilities | `exec`                     |
+| Property              | Value                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| Nature                | Mixed — `started`/`stopped` are declarative; `restarted`/`reloaded` are imperative  |
+| Idempotent            | Partial — `started`/`stopped` are idempotent; `restarted`/`reloaded` always execute |
+| Destructive           | No                                                                                  |
+| Read-only             | No                                                                                  |
+| Required capabilities | `exec`                                                                              |
 
 ## Examples
 
@@ -75,7 +75,7 @@ await service({ name: "nginx", state: "started", enabled: true })
 await file({
   path: "/etc/nginx/nginx.conf",
   template: nginxConf,
-  mode: "644",
+  mode: "0644",
 })
 await service({ name: "nginx", state: "restarted" })
 ```

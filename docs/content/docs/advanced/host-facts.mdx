@@ -42,7 +42,7 @@ After verifying SSH connectivity, Ignition runs three commands concurrently:
 2. `command -v apt-get 2>/dev/null; command -v dnf 2>/dev/null; command -v yum 2>/dev/null; command -v apk 2>/dev/null; uname -m` — detects package manager and architecture
 3. `command -v systemctl 2>/dev/null; command -v openrc-init 2>/dev/null || true` — detects init system
 
-All three run in parallel for speed. If any command fails, that field falls back to `"unknown"` or `null`. Facts probing never fails the run.
+All three run in parallel for speed. If any probe throws, Ignition falls back to `UNKNOWN_HOST_FACTS` for the entire fact set. Facts probing never fails the run.
 
 ## Accessing facts in recipes
 

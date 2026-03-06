@@ -3,7 +3,7 @@
  *
  * Usage:
  *   ignition run   examples/nginx.ts @web -i examples/inventory.ts
- *   ignition check examples/nginx.ts @web -i examples/inventory.ts
+ *   ignition run --check examples/nginx.ts @web -i examples/inventory.ts
  */
 
 import type { ExecutionContext, TemplateContext } from "../src/core/types.ts"

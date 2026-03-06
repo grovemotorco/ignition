@@ -1,5 +1,5 @@
 {
   "title": "Reference",
   "icon": "FileCode",
-  "pages": ["cli", "resources", "types", "library"]
+  "pages": ["cli", "resources", "types"]
 }

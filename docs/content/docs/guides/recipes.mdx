@@ -111,13 +111,13 @@ export default async function (ctx: ExecutionContext) {
 }
 ```
 
-Filter recipes by tag with `--tags`:
+Filter recipes by the recipe module's `meta.tags` with repeatable `--tags` flags:
 
 ```bash
-ignition run deploy.ts @web --inventory hosts.ts --tags web,deploy
+ignition run deploy.ts @web --inventory hosts.ts --tags web --tags deploy
 ```
 
-When `--tags` is set, the recipe only runs if its tags overlap with the selected tags.
+When `--tags` is set, the recipe only runs if its tags overlap with the selected tags. This is currently recipe-level filtering only; per-resource call metadata tags are not wired into `ignition run`.
 
 ## Composition
 
@@ -132,7 +132,7 @@ export async function hardenSSH(ctx: ExecutionContext) {
   await file({
     path: "/etc/ssh/sshd_config.d/hardening.conf",
     content: "PermitRootLogin no\nPasswordAuthentication no\n",
-    mode: "600",
+    mode: "0600",
   })
   await service({ name: "sshd", state: "restarted" })
 }
