@@ -350,6 +350,20 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="border-t border-fd-border px-4 py-6 md:px-8">
+        <div className="mx-auto max-w-250 text-center text-sm text-fd-muted-foreground">
+          <a
+            href="https://www.grovemotor.co/"
+            className="hover:text-fd-foreground transition-colors"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Grove Motor Engineering
+          </a>
+        </div>
+      </footer>
     </main>
   )
 }
