@@ -1,16 +1,27 @@
 {
   "name": "@grovemotorco/ignition",
-  "version": "0.0.1",
+  "version": "0.0.6",
   "bin": {
-    "ignition": "./src/cli.ts"
+    "ignition": "./dist/cli.js"
   },
   "workspaces": [
     "src/dashboard/ui",
     "docs"
   ],
+  "files": [
+    "dist",
+    "src",
+    "!src/dashboard/ui"
+  ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "bun": "./src/index.ts",
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
   },
   "scripts": {
     "prepare": "bun run scripts/ensure-dashboard-stub.ts",
@@ -26,6 +37,7 @@
     "fmt:check": "oxfmt --check",
     "verify": "bun run --sequential typecheck lint fmt:check test",
     "dashboard:build": "bun run --cwd src/dashboard/ui vite build",
+    "build": "tsgo --project tsconfig.build.json",
     "build:executable": "bun run scripts/build-executable.ts",
     "install:global": "bun run scripts/install.ts",
     "sandbox": "bun run scripts/deno-sandbox.ts",
@@ -35,10 +47,11 @@
     "docs:build": "bun run --cwd docs build",
     "theme:generate": "bun run scripts/extract-palette.ts",
     "theme:preview": "bun run scripts/extract-palette.ts --preview",
-    "publish": "bun run scripts/publish.ts"
+    "release": "bun run scripts/publish.ts"
   },
   "dependencies": {
-    "incur": "0.2.2"
+    "incur": "0.2.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@deno/sandbox": "^0.2.2",
