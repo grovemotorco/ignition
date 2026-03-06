@@ -11,8 +11,11 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@grovemotorco/ignition": ["./src/index.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts"],
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "examples/**/*.ts"],
   "exclude": ["refs/", ".claude/", "node_modules", "src/dashboard/ui"]
 }
