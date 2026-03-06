@@ -2,7 +2,10 @@
 
 import { useState, useRef, useEffect } from "react"
 
-const methods = [{ label: "bun", command: "bun install -g @grovemotorco/ignition" }] as const
+const methods = [
+  { label: "bun", command: "bun install -g @grovemotorco/ignition" },
+  { label: "npm", command: "npm install -g @grovemotorco/ignition" },
+] as const
 
 export function InstallCommand() {
   const [selected, setSelected] = useState(0)

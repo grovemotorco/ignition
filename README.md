@@ -1,6 +1,7 @@
-<p align="center">
-  <img src="docs/public/logo.png" alt="Ignition" width="100" height="100">
-</p>
+<div align="center">
+  <img src="./docs/public/logo-small.png" width="150px" alt="Ignition">
+</div>
+
 
 <h3 align="center">Server provisioning in TypeScript.</h3>
 
@@ -33,10 +34,16 @@ ignition run --check deploy.ts root@203.0.113.10    # dry-run
 ignition run deploy.ts root@203.0.113.10            # apply
 ```
 
+## Prerequisites
+
+- **[Bun](https://bun.sh)** v1.3 or later (required runtime)
+
 ## Install
 
 ```bash
 bun install -g @grovemotorco/ignition
+# or
+npm install -g @grovemotorco/ignition
 ```
 
 Or run from source:
