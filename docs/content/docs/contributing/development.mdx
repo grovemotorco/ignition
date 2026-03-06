@@ -61,7 +61,7 @@ Start two processes:
 **Terminal 1** — mock event server on `:9090`:
 
 ```bash
-bun run src/dashboard/dev-server.ts
+bun run dev:dashboard
 ```
 
 This pushes synthetic run events with realistic timing.
@@ -69,7 +69,7 @@ This pushes synthetic run events with realistic timing.
 **Terminal 2** — Vite dev server on `:5173`:
 
 ```bash
-cd src/dashboard/ui && bunx vite
+bun run dev:ui
 ```
 
 Open `http://localhost:5173` — the React UI has HMR and proxies `/ws` and `/api` to the mock backend.
@@ -94,5 +94,5 @@ Produces `dist/ignition` — a single-file binary.
 
 ## Code style
 
-- Tabs, 120 character line width, no semicolons
+- 2-space indentation, 100 character line width, no semicolons
 - Enforced by oxfmt (`bun run fmt`) and oxlint (`bun run lint`)

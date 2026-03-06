@@ -7,7 +7,7 @@ export type OutputFormat = "pretty" | "json" | "minimal"
 /** Options specific to run and check commands. */
 export interface RunCheckOptions {
   readonly inventory?: string
-  readonly verbose?: boolean
+  readonly trace?: boolean
   readonly format?: OutputFormat
   readonly errorMode?: ErrorMode
   readonly tags: readonly string[]
@@ -24,14 +24,15 @@ export interface RunCheckOptions {
   readonly cache?: boolean
   readonly cacheTtl?: number
   readonly cacheClear?: boolean
-  readonly dashboard?: string
+  readonly dashboardHost?: string
+  readonly dashboardPort?: number
   readonly logDir?: string
 }
 
 /** Fully resolved options after merging CLI flags, config file, and defaults. */
 export interface ResolvedRunCheckOptions {
   readonly inventory?: string
-  readonly verbose: boolean
+  readonly trace: boolean
   readonly format: OutputFormat
   readonly errorMode: ErrorMode
   readonly tags: readonly string[]
@@ -48,6 +49,7 @@ export interface ResolvedRunCheckOptions {
   readonly cache: boolean
   readonly cacheTtl: number
   readonly cacheClear: boolean
-  readonly dashboard?: string
+  readonly dashboardHost: string
+  readonly dashboardPort: number
   readonly logDir?: string
 }

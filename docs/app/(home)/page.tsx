@@ -7,7 +7,7 @@ import { HeroToggle } from "@/components/landing/hero-toggle"
 import { Server, Shield, TerminalSquare, Repeat, LayoutDashboard, Zap } from "lucide-react"
 
 const checkOutput = [
-  { text: "$ ignition check deploy.ts admin@web-1", cls: "text-white font-semibold" },
+  { text: "$ ignition run --check deploy.ts admin@web-1", cls: "text-white font-semibold" },
   { text: "" },
   { text: "  web-1  ▸ Checking deploy.ts", cls: "text-terminal-blue" },
   { text: "" },
@@ -31,7 +31,7 @@ const features = [
     icon: Shield,
     title: "Check Before Apply",
     description:
-      "Every resource reads actual state before mutating. Dry-run for free with ignition check.",
+      "Every resource reads actual state before mutating. Dry-run for free with ignition run --check.",
   },
   {
     icon: Server,

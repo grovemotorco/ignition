@@ -115,8 +115,8 @@ const hostname = result.output?.stdout.trim()
 ## Gotchas
 
 - Unguarded `exec` always reports `changed` because it can't determine whether the command mutated state.
-- In check mode (`ignition check`), unguarded exec reports as "would change" since it's imperative.
+- In check mode (`ignition run --check`), unguarded exec reports as "would change" since it's imperative.
 - Guarded exec (`unless`/`onlyIf`) can report `ok` when the guard condition determines the desired state is already met.
 - Set `check: false` for commands where a non-zero exit code is acceptable (e.g., `grep` returning 1 for no match).
 - `sudo` wraps the entire command with `sudo sh -c '...'` — shell features like pipes and redirects work inside.
-- Command output (stdout/stderr) can be streamed in real time when verbose mode is enabled.
+- Command output (stdout/stderr) can be streamed in real time when trace mode is enabled.

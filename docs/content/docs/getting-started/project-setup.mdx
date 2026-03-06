@@ -47,7 +47,7 @@ import type { IgnitionConfig } from "@grovemotorco/ignition"
 
 const config: IgnitionConfig = {
   inventory: "inventory.ts",
-  verbose: true,
+  trace: true,
   parallelism: 10,
   errorMode: "fail-at-end",
 }
@@ -58,7 +58,7 @@ export default config
 With this config, you can run:
 
 ```bash
-# Before: ignition run deploy.ts @web -i inventory.ts --verbose --error-mode fail-at-end --parallelism 10
+# Before: ignition run deploy.ts @web --inventory inventory.ts --trace --error-mode fail-at-end --parallelism 10
 # After:
 ignition run deploy.ts @web
 ```

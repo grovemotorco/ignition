@@ -36,7 +36,7 @@ The script prints connection details:
 
 ═══ Ignition commands ═══
   # Dry-run
-  bun run dev check examples/smoke-test.ts sandbox-user@sandbox-host.example.com --host-key-policy off
+  bun run dev run --check examples/smoke-test.ts sandbox-user@sandbox-host.example.com --host-key-policy off
 
   # Apply
   bun run dev run examples/smoke-test.ts sandbox-user@sandbox-host.example.com --host-key-policy off
@@ -70,7 +70,7 @@ A typical sandbox workflow:
 bun run sandbox 15m
 
 # 2. In another terminal, run your recipe
-ignition check my-recipe.ts sandbox-user@sandbox-host.example.com --host-key-policy off
+ignition run --check my-recipe.ts sandbox-user@sandbox-host.example.com --host-key-policy off
 ignition run my-recipe.ts sandbox-user@sandbox-host.example.com --host-key-policy off
 
 # 3. Iterate — edit recipe, re-run

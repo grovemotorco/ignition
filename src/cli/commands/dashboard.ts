@@ -1,75 +1,76 @@
-import { Command } from "@cliffy/command"
-import { collectVarEntry, parseDashboardAddress, parseHistoryVar } from "../parsers.ts"
-import { CliExitCode } from "../runtime.ts"
+import { Cli, z } from "incur"
 import { DashboardServer } from "../../dashboard/server.ts"
+import { loggerVarsSchema } from "../logger.ts"
 
-export interface DashboardCommandArgs {
-  readonly hostname: string
-  readonly port: number
-  readonly maxHistory: number
+const WILDCARD_HOSTS = new Set(["0.0.0.0", "::", "[::]"])
+
+function resolveDashboardHostname(hostname: string): string {
+  return WILDCARD_HOSTS.has(hostname) ? "127.0.0.1" : hostname
 }
 
-export async function dashboardCommand(args: DashboardCommandArgs): Promise<number> {
-  const { port, hostname, maxHistory } = args
-
-  const server = new DashboardServer({ port, hostname, maxHistory })
-  await server.start()
-
-  let viteHandle: { url: string; close(): Promise<void> } | undefined
-  try {
-    const { canStartViteDev, startViteDev } = await import("../../dashboard/vite-dev.ts")
-    if (await canStartViteDev()) {
-      viteHandle = await startViteDev({ apiHostname: hostname, apiPort: server.port })
-      console.log(`Dashboard (dev): ${viteHandle.url}`)
-    }
-  } catch {
-    /* production — no vite available */
-  }
-
-  if (!viteHandle) {
-    console.log(`Dashboard running at http://${hostname}:${server.port}`)
-  }
-  console.log(`Waiting for runs... (connect with --dashboard ${hostname}:${server.port})`)
-  console.log("Press Ctrl+C to stop.")
-
-  const { promise, resolve } = Promise.withResolvers<void>()
-  const onSignal = () => resolve()
-  process.on("SIGINT", onSignal)
-  process.on("SIGTERM", onSignal)
-
-  try {
-    await promise
-  } finally {
-    process.off("SIGINT", onSignal)
-    process.off("SIGTERM", onSignal)
-    console.log("\nShutting down dashboard...")
-    if (viteHandle) await viteHandle.close()
-    await server.shutdown()
-  }
-
-  return 0
+function buildDashboardUrl(hostname: string, port: number): string {
+  return `http://${resolveDashboardHostname(hostname)}:${port}`
 }
 
-export const dashboard = new Command()
-  .description("Start a persistent web dashboard.")
-  .option("--var <keyValue:string>", "Variable override as key=value.", {
-    collect: true,
-    value: collectVarEntry,
-  })
-  .option("-v, --verbose", "Enable verbose output.")
-  .arguments("[address:string]")
-  .action(async (options, address) => {
-    let hostname = "127.0.0.1"
-    let port = 9090
+function parseDashboardUrl(url: string): { url: string; hostname: string; port: number } {
+  const parsed = new URL(url)
+  return {
+    url,
+    hostname: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80,
+  }
+}
 
-    if (address) {
-      ;[hostname, port] = parseDashboardAddress(address)
+export const dashboard = Cli.create("dashboard", {
+  description: "Start persistent web dashboard",
+  vars: loggerVarsSchema,
+  options: z.object({
+    port: z.number().optional().default(9090).describe("Dashboard port"),
+    host: z.string().optional().default("127.0.0.1").describe("Dashboard hostname"),
+    maxHistory: z.number().optional().default(10).describe("Max run history to retain"),
+  }),
+  output: z.object({
+    url: z.string().describe("Dashboard URL"),
+    hostname: z.string(),
+    port: z.number(),
+  }),
+  outputPolicy: "agent-only",
+  async *run(c) {
+    const { host: hostname, port, maxHistory } = c.options
+    const logger = c.var.logger
+
+    const server = new DashboardServer({ port, hostname, maxHistory })
+    await server.start()
+
+    const output = parseDashboardUrl(buildDashboardUrl(hostname, server.port))
+    yield c.ok(output)
+
+    logger.writeln(`Dashboard running at ${output.url}`)
+    logger.writeln("Waiting for runs...")
+    logger.writeln("Press Ctrl+C to stop.")
+
+    const { promise, resolve } = Promise.withResolvers<void>()
+    let signalCount = 0
+    const onSignal = () => {
+      signalCount++
+      if (signalCount > 1) {
+        logger.writeln("")
+        logger.writeln("Forcing dashboard shutdown...")
+        process.exit(130)
+      }
+      resolve()
     }
+    process.on("SIGINT", onSignal)
+    process.on("SIGTERM", onSignal)
 
-    const code = await dashboardCommand({
-      hostname,
-      port,
-      maxHistory: parseHistoryVar(options.var ?? []),
-    })
-    if (code !== 0) throw new CliExitCode(code)
-  })
+    try {
+      await promise
+    } finally {
+      process.off("SIGINT", onSignal)
+      process.off("SIGTERM", onSignal)
+      logger.writeln("")
+      logger.writeln("Shutting down dashboard...")
+      await server.shutdown()
+    }
+  },
+})

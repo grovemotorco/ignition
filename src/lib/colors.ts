@@ -2,22 +2,37 @@
  * Semantic color helpers for CLI output.
  *
  * Provides a consistent color vocabulary across the CLI. All output coloring
- * should use these helpers instead of raw chalk calls. See ISSUE-0043.
+ * should use these helpers instead of raw ANSI codes. See ISSUE-0043.
  */
 
-import chalk from "chalk"
+const ANSI_PREFIX = "\x1b["
+const ANSI_RESET = `${ANSI_PREFIX}0m`
+
+function colorsEnabled(): boolean {
+  const forceColor = process.env.FORCE_COLOR
+  if (forceColor === "0") return false
+  if (forceColor !== undefined) return true
+  if ("NO_COLOR" in process.env) return false
+  if (process.env.TERM === "dumb") return false
+  return Boolean(process.stdout.isTTY || process.stderr.isTTY)
+}
+
+function withAnsi(code: number, text: string): string {
+  if (!colorsEnabled()) return text
+  return `${ANSI_PREFIX}${code}m${text}${ANSI_RESET}`
+}
 
 // ---------------------------------------------------------------------------
 // Semantic colors
 // ---------------------------------------------------------------------------
 
-export const success = (text: string): string => chalk.green(text)
-export const error = (text: string): string => chalk.red(text)
-export const warning = (text: string): string => chalk.yellow(text)
-export const info = (text: string): string => chalk.cyan(text)
-export const header = (text: string): string => chalk.bold(text)
-export const muted = (text: string): string => chalk.dim(text)
-export const bold = (text: string): string => chalk.bold(text)
+export const success = (text: string): string => withAnsi(32, text)
+export const error = (text: string): string => withAnsi(31, text)
+export const warning = (text: string): string => withAnsi(33, text)
+export const info = (text: string): string => withAnsi(36, text)
+export const header = (text: string): string => withAnsi(1, text)
+export const muted = (text: string): string => withAnsi(2, text)
+export const bold = (text: string): string => withAnsi(1, text)
 
 // ---------------------------------------------------------------------------
 // Status colors — map resource statuses to visual indicators
@@ -56,11 +71,11 @@ export function stripAnsi(text: string): string {
 export function statusColor(text: string, status: string): string {
   switch (status) {
     case "ok":
-      return chalk.green(text)
+      return success(text)
     case "changed":
-      return chalk.yellow(text)
+      return warning(text)
     case "failed":
-      return chalk.red(text)
+      return error(text)
     default:
       return text
   }

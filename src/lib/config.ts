@@ -11,7 +11,7 @@ import type { ErrorMode } from "../core/types.ts"
 import { DEFAULT_CONCURRENCY, DEFAULT_RESOURCE_POLICY } from "../core/types.ts"
 import { DEFAULT_CACHE_TTL_MS } from "../core/cache.ts"
 import type { HostKeyPolicy } from "../ssh/types.ts"
-import type { OutputFormat, ResolvedRunCheckOptions, RunCheckOptions } from "../cli/types.ts"
+import type { OutputFormat, ResolvedRunCheckOptions, RunCheckOptions } from "./types.ts"
 
 /** The config file name to look for in the project root. */
 const CONFIG_FILENAME = "ignition.config.ts"
@@ -33,7 +33,7 @@ const VALID_HOST_KEY_POLICIES: readonly string[] = ["strict", "accept-new", "off
  * const config: IgnitionConfig = {
  *   inventory: 'hosts.ts',
  *   parallelism: 8,
- *   verbose: true,
+ *   trace: true,
  * }
  *
  * export default config
@@ -60,12 +60,14 @@ export interface IgnitionConfig {
   multiplex?: boolean
   /** SSH host key verification policy. */
   hostKeyPolicy?: HostKeyPolicy
-  /** Dashboard server address. */
-  dashboard?: string
+  /** Dashboard server hostname. */
+  dashboardHost?: string
+  /** Dashboard server port. */
+  dashboardPort?: number
   /** NDJSON log output directory. */
   logDir?: string
-  /** Enable verbose output. */
-  verbose?: boolean
+  /** Enable trace output. */
+  trace?: boolean
   /** Enable check result caching. */
   cache?: boolean
   /** Cache TTL in ms. */
@@ -108,8 +110,8 @@ export async function loadConfig(cwd: string): Promise<IgnitionConfig> {
  *
  * CLI flags are `undefined` when not explicitly passed by the user (Stricli
  * flags use `optional: true` instead of `default:`). This lets the merge
- * correctly distinguish "user explicitly passed --no-verbose" (`false`) from
- * "user didn't pass --verbose" (`undefined`).
+ * correctly distinguish "user explicitly passed --no-trace" (`false`) from
+ * "user didn't pass --trace" (`undefined`).
  */
 export function mergeWithConfig(
   options: RunCheckOptions,
@@ -120,9 +122,8 @@ export function mergeWithConfig(
     vars: { ...config.vars, ...options.vars },
     // CLI ?? config ?? default
     inventory: options.inventory ?? config.inventory,
-    dashboard: options.dashboard ?? config.dashboard,
     logDir: options.logDir ?? config.logDir,
-    verbose: options.verbose ?? config.verbose ?? false,
+    trace: options.trace ?? config.trace ?? false,
     format: options.format ?? config.format ?? "pretty",
     errorMode: options.errorMode ?? config.errorMode ?? "fail-fast",
     // confirm is intentionally not config-settable — too dangerous as a default
@@ -139,6 +140,8 @@ export function mergeWithConfig(
     cache: options.cache ?? config.cache ?? false,
     cacheTtl: options.cacheTtl ?? config.cacheTtl ?? DEFAULT_CACHE_TTL_MS,
     cacheClear: options.cacheClear ?? config.cacheClear ?? false,
+    dashboardHost: options.dashboardHost ?? config.dashboardHost ?? "127.0.0.1",
+    dashboardPort: options.dashboardPort ?? config.dashboardPort ?? 9090,
   }
 }
 
@@ -177,11 +180,12 @@ export function validateConfig(config: IgnitionConfig): void {
 
   // String fields
   if (config.inventory !== undefined) assertType("inventory", config.inventory, "string")
-  if (config.dashboard !== undefined) assertType("dashboard", config.dashboard, "string")
+  if (config.dashboardHost !== undefined)
+    assertType("dashboardHost", config.dashboardHost, "string")
   if (config.logDir !== undefined) assertType("logDir", config.logDir, "string")
 
   // Boolean fields
-  if (config.verbose !== undefined) assertType("verbose", config.verbose, "boolean")
+  if (config.trace !== undefined) assertType("trace", config.trace, "boolean")
   if (config.multiplex !== undefined) assertType("multiplex", config.multiplex, "boolean")
   if (config.cache !== undefined) assertType("cache", config.cache, "boolean")
   if (config.cacheClear !== undefined) assertType("cacheClear", config.cacheClear, "boolean")
@@ -213,6 +217,18 @@ export function validateConfig(config: IgnitionConfig): void {
     throw new ConfigValidationError(
       `Invalid hostKeyPolicy "${config.hostKeyPolicy}" in ${CONFIG_FILENAME}. Must be one of: ${VALID_HOST_KEY_POLICIES.join(", ")}`,
     )
+  }
+  if (config.dashboardPort !== undefined) {
+    if (
+      typeof config.dashboardPort !== "number" ||
+      !Number.isInteger(config.dashboardPort) ||
+      config.dashboardPort < 1 ||
+      config.dashboardPort > 65535
+    ) {
+      throw new ConfigValidationError(
+        `Invalid dashboardPort "${config.dashboardPort}" in ${CONFIG_FILENAME}. Must be an integer between 1 and 65535.`,
+      )
+    }
   }
   if (config.parallelism !== undefined) {
     if (
