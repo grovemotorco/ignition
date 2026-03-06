@@ -5,7 +5,7 @@ import {
   validateConfig,
   ConfigValidationError,
 } from "../../src/lib/config.ts"
-import type { RunCheckOptions } from "../../src/cli/types.ts"
+import type { RunCheckOptions } from "../../src/lib/types.ts"
 
 // ---------------------------------------------------------------------------
 // loadConfig
@@ -30,7 +30,7 @@ function unsetOptions(): RunCheckOptions {
 
 test("mergeWithConfig — returns hardcoded defaults when config and CLI are both empty", () => {
   const result = mergeWithConfig(unsetOptions(), {})
-  expect(result.verbose).toEqual(false)
+  expect(result.trace).toEqual(false)
   expect(result.format).toEqual("pretty")
   expect(result.errorMode).toEqual("fail-fast")
   expect(result.parallelism).toEqual(5)
@@ -43,18 +43,16 @@ test("mergeWithConfig — returns hardcoded defaults when config and CLI are bot
 test("mergeWithConfig — config fills undefined fields", () => {
   const result = mergeWithConfig(unsetOptions(), {
     inventory: "hosts.ts",
-    verbose: true,
+    trace: true,
     parallelism: 10,
     format: "json",
-    dashboard: "127.0.0.1:9090",
     logDir: "/var/log/ignition",
   })
 
   expect(result.inventory).toEqual("hosts.ts")
-  expect(result.verbose).toEqual(true)
+  expect(result.trace).toEqual(true)
   expect(result.parallelism).toEqual(10)
   expect(result.format).toEqual("json")
-  expect(result.dashboard).toEqual("127.0.0.1:9090")
   expect(result.logDir).toEqual("/var/log/ignition")
 })
 
@@ -63,26 +61,26 @@ test("mergeWithConfig — CLI values always win over config", () => {
     ...unsetOptions(),
     inventory: "cli-hosts.ts",
     parallelism: 3,
-    verbose: false,
+    trace: false,
     format: "minimal",
   }
   const result = mergeWithConfig(options, {
     inventory: "config-hosts.ts",
     parallelism: 10,
-    verbose: true,
+    trace: true,
     format: "json",
   })
 
   expect(result.inventory).toEqual("cli-hosts.ts")
   expect(result.parallelism).toEqual(3)
-  expect(result.verbose).toEqual(false)
+  expect(result.trace).toEqual(false)
   expect(result.format).toEqual("minimal")
 })
 
-test("mergeWithConfig — explicit --no-verbose wins over config verbose: true", () => {
-  const options: RunCheckOptions = { ...unsetOptions(), verbose: false }
-  const result = mergeWithConfig(options, { verbose: true })
-  expect(result.verbose).toEqual(false)
+test("mergeWithConfig — explicit --no-trace wins over config trace: true", () => {
+  const options: RunCheckOptions = { ...unsetOptions(), trace: false }
+  const result = mergeWithConfig(options, { trace: true })
+  expect(result.trace).toEqual(false)
 })
 
 test("mergeWithConfig — explicit --parallelism 5 wins over config parallelism: 10", () => {
@@ -102,7 +100,7 @@ test("mergeWithConfig — config vars merge with CLI vars (CLI wins)", () => {
 
 test("mergeWithConfig — pass-through fields are preserved", () => {
   const options: RunCheckOptions = { ...unsetOptions(), tags: ["web"] }
-  const result = mergeWithConfig(options, { verbose: true })
+  const result = mergeWithConfig(options, { trace: true })
 
   expect(result.tags).toEqual(["web"])
 })
@@ -187,17 +185,23 @@ test("validateConfig — rejects non-string inventory", () => {
   expect(() => validateConfig({ inventory: true } as never)).toThrow(ConfigValidationError)
 })
 
-test("validateConfig — rejects non-string dashboard", () => {
-  expect(() => validateConfig({ dashboard: 9090 } as never)).toThrow(ConfigValidationError)
+test("validateConfig — rejects non-string dashboardHost", () => {
+  expect(() => validateConfig({ dashboardHost: 9090 } as never)).toThrow(ConfigValidationError)
+})
+
+test("validateConfig — rejects invalid dashboardPort", () => {
+  expect(() => validateConfig({ dashboardPort: 0 })).toThrow(ConfigValidationError)
+  expect(() => validateConfig({ dashboardPort: 70000 })).toThrow(ConfigValidationError)
+  expect(() => validateConfig({ dashboardPort: "9090" } as never)).toThrow(ConfigValidationError)
 })
 
 test("validateConfig — rejects non-string logDir", () => {
   expect(() => validateConfig({ logDir: false } as never)).toThrow(ConfigValidationError)
 })
 
-test("validateConfig — rejects non-boolean verbose", () => {
-  expect(() => validateConfig({ verbose: "true" } as never)).toThrow(ConfigValidationError)
-  expect(() => validateConfig({ verbose: 1 } as never)).toThrow(ConfigValidationError)
+test("validateConfig — rejects non-boolean trace", () => {
+  expect(() => validateConfig({ trace: "true" } as never)).toThrow(ConfigValidationError)
+  expect(() => validateConfig({ trace: 1 } as never)).toThrow(ConfigValidationError)
 })
 
 test("validateConfig — rejects non-boolean multiplex", () => {
@@ -224,9 +228,10 @@ test("validateConfig — accepts valid string, boolean, and vars fields", () => 
   expect(() =>
     validateConfig({
       inventory: "hosts.ts",
-      dashboard: "127.0.0.1:9090",
+      dashboardHost: "127.0.0.1",
+      dashboardPort: 9090,
       logDir: "/var/log",
-      verbose: true,
+      trace: true,
       multiplex: false,
       vars: { region: "us-east-1" },
     }),

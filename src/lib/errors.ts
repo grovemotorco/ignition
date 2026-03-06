@@ -58,7 +58,7 @@ function getSuggestion(err: IgnitionError): string | undefined {
     case "SSHConnectionError":
       return "Check that the host is reachable (ssh -v) and SSH is configured correctly."
     case "SSHCommandError":
-      return "The remote command failed. Use --verbose to see full SSH output."
+      return "The remote command failed. Use --trace to see full SSH output."
     case "TransferError":
       return "File transfer failed. Verify the remote path is writable."
     case "RecipeLoadError":

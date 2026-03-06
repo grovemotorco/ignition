@@ -1,8 +1,8 @@
-import { Command } from "@cliffy/command"
+import { Cli } from "incur"
 import { readFileSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
-import { CliExitCode } from "../runtime.ts"
+import { loggerVarsSchema } from "../logger.ts"
 
 const EXAMPLE_INVENTORY = `import type { Inventory } from '@grovemotorco/ignition'
 
@@ -28,7 +28,7 @@ const EXAMPLE_CONFIG = `import type { IgnitionConfig } from '@grovemotorco/ignit
 
 const config: IgnitionConfig = {
 \tinventory: 'inventory.ts',
-\tverbose: true,
+\ttrace: true,
 }
 
 export default config
@@ -62,14 +62,6 @@ interface PackageJson {
   dependencies?: Record<string, unknown>
   devDependencies?: Record<string, unknown>
   [key: string]: unknown
-}
-
-type DependencyState = "self" | "present" | "added"
-type CommandRunner = (command: readonly string[]) => Promise<number>
-
-export interface InitCommandDeps {
-  runCommand?: CommandRunner
-  getEmbeddedLibrary?: () => string | null
 }
 
 async function fileExists(path: string): Promise<boolean> {
@@ -131,13 +123,9 @@ function hasIgnitionDependency(pkg: PackageJson): boolean {
   return false
 }
 
-async function ensureIgnitionDependency(pkg: PackageJson): Promise<DependencyState> {
-  if (pkg.name === IGNITION_PACKAGE) {
-    return "self"
-  }
-  if (hasIgnitionDependency(pkg)) {
-    return "present"
-  }
+async function ensureIgnitionDependency(pkg: PackageJson): Promise<"self" | "present" | "added"> {
+  if (pkg.name === IGNITION_PACKAGE) return "self"
+  if (hasIgnitionDependency(pkg)) return "present"
 
   const dependencies = isRecord(pkg.dependencies) ? { ...pkg.dependencies } : {}
   dependencies[IGNITION_PACKAGE] = DEFAULT_DEPENDENCY_SPEC
@@ -156,9 +144,7 @@ async function detectPackageManager(): Promise<PackageManager> {
 
   for (const { manager, files } of lockfiles) {
     for (const file of files) {
-      if (await fileExists(file)) {
-        return manager
-      }
+      if (await fileExists(file)) return manager
     }
   }
   return "bun"
@@ -177,7 +163,7 @@ function getInstallCommand(manager: PackageManager): string[] {
   }
 }
 
-function defaultGetEmbeddedLibrary(): string | null {
+function getEmbeddedLibrary(): string | null {
   try {
     const libPath = join(dirname(process.execPath), "ignition-lib.js")
     return readFileSync(libPath, "utf-8")
@@ -210,108 +196,103 @@ async function runInstallCommand(command: readonly string[]): Promise<number> {
   return await proc.exited
 }
 
-async function scaffoldFiles(): Promise<number> {
-  const files: Array<{ path: string; content: string; label: string }> = [
-    { path: "ignition.config.ts", content: EXAMPLE_CONFIG, label: "ignition.config.ts" },
-    { path: "inventory.ts", content: EXAMPLE_INVENTORY, label: "inventory.ts" },
-    { path: "recipe.ts", content: EXAMPLE_RECIPE, label: "recipe.ts" },
-  ]
+export const init = Cli.create("init", {
+  description: "Scaffold a new Ignition project",
+  vars: loggerVarsSchema,
+  async *run(c) {
+    let installFailed = false
+    const logger = c.var.logger
 
-  let created = 0
-  for (const { path, content, label } of files) {
-    if (await fileExists(path)) {
-      console.log(`  skip  ${label} (already exists)`)
-      continue
-    }
-    await Bun.write(path, content)
-    console.log(`  create  ${label}`)
-    created++
-  }
-
-  if (created > 0) {
-    console.log("\nNext steps:")
-    console.log("  1. Edit inventory.ts with your server hostnames and SSH credentials")
-    console.log("  2. Edit recipe.ts with the packages and config you want to provision")
-    console.log("  3. Dry-run:  ignition check recipe.ts @web")
-    console.log("  4. Apply:    ignition run recipe.ts @web")
-  } else {
-    console.log("\nNothing to create — all files already exist.")
-  }
-
-  return created
-}
-
-export async function initCommand(deps: InitCommandDeps = {}): Promise<number> {
-  const externalCommandRunner = deps.runCommand ?? runInstallCommand
-  const getEmbeddedLibrary = deps.getEmbeddedLibrary ?? defaultGetEmbeddedLibrary
-  let installFailed = false
-
-  let pkg: PackageJson
-  try {
-    const ensured = await ensureProjectPackageJson()
-    pkg = ensured.pkg
-    if (ensured.created) {
-      console.log("  create  package.json")
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error(message)
-    return 1
-  }
-
-  const dependencyState = await ensureIgnitionDependency(pkg)
-  switch (dependencyState) {
-    case "self":
-      console.log(`  skip  ${IGNITION_PACKAGE} dependency (current package is ${IGNITION_PACKAGE})`)
-      break
-    case "present":
-      console.log(`  skip  ${IGNITION_PACKAGE} dependency (already present)`)
-      break
-    case "added": {
-      console.log(`  update  package.json (add ${IGNITION_PACKAGE}@${DEFAULT_DEPENDENCY_SPEC})`)
-      const manager = await detectPackageManager()
-      const installCommand = getInstallCommand(manager)
-      console.log(`  install  ${installCommand.join(" ")}`)
-
-      let installExit = 1
-      try {
-        installExit = await externalCommandRunner(installCommand)
-      } catch {
-        // install failed — will try embedded fallback below
+    // 1. Ensure package.json
+    let pkg: PackageJson
+    try {
+      const ensured = await ensureProjectPackageJson()
+      pkg = ensured.pkg
+      if (ensured.created) {
+        yield "create  package.json"
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return c.error({ code: "INIT_FAILED", message })
+    }
 
-      if (installExit !== 0) {
-        const embeddedLib = getEmbeddedLibrary()
-        if (embeddedLib) {
-          console.log(`  embed  writing bundled ${IGNITION_PACKAGE} to node_modules/`)
-          const written = await writeEmbeddedLibraryToNodeModules(embeddedLib)
-          if (!written) {
-            installFailed = true
-            console.error(`Failed to write embedded ${IGNITION_PACKAGE} to node_modules/`)
-          }
-        } else {
-          installFailed = true
-          console.error(`Could not install ${IGNITION_PACKAGE}. Run manually:`)
-          console.error(`  ${installCommand.join(" ")}`)
+    // 2. Ensure dependency
+    const dependencyState = await ensureIgnitionDependency(pkg)
+    switch (dependencyState) {
+      case "self":
+        yield `skip  ${IGNITION_PACKAGE} dependency (current package is ${IGNITION_PACKAGE})`
+        break
+      case "present":
+        yield `skip  ${IGNITION_PACKAGE} dependency (already present)`
+        break
+      case "added": {
+        yield `update  package.json (add ${IGNITION_PACKAGE}@${DEFAULT_DEPENDENCY_SPEC})`
+        const manager = await detectPackageManager()
+        const installCmd = getInstallCommand(manager)
+        yield `install  ${installCmd.join(" ")}`
+
+        let installExit = 1
+        try {
+          installExit = await runInstallCommand(installCmd)
+        } catch {
+          // install failed -- will try embedded fallback
         }
+
+        if (installExit !== 0) {
+          const embeddedLib = getEmbeddedLibrary()
+          if (embeddedLib) {
+            yield `embed  writing bundled ${IGNITION_PACKAGE} to node_modules/`
+            const written = await writeEmbeddedLibraryToNodeModules(embeddedLib)
+            if (!written) {
+              installFailed = true
+              logger.writeln(`Failed to write embedded ${IGNITION_PACKAGE} to node_modules/`)
+            }
+          } else {
+            installFailed = true
+            logger.writeln(`Could not install ${IGNITION_PACKAGE}. Run manually:`)
+            logger.writeln(`  ${installCmd.join(" ")}`)
+          }
+        }
+        break
       }
-      break
     }
-  }
 
-  await scaffoldFiles()
+    // 3. Scaffold files
+    const files: Array<{ path: string; content: string; label: string }> = [
+      { path: "ignition.config.ts", content: EXAMPLE_CONFIG, label: "ignition.config.ts" },
+      { path: "inventory.ts", content: EXAMPLE_INVENTORY, label: "inventory.ts" },
+      { path: "recipe.ts", content: EXAMPLE_RECIPE, label: "recipe.ts" },
+    ]
 
-  if (installFailed) {
-    console.error("\nInit completed with errors. Dependency installation failed.")
-    return 1
-  }
+    let created = 0
+    for (const { path, content, label } of files) {
+      if (await fileExists(path)) {
+        yield `skip  ${label} (already exists)`
+        continue
+      }
+      await Bun.write(path, content)
+      yield `create  ${label}`
+      created++
+    }
 
-  return 0
-}
+    if (created === 0) {
+      yield "Nothing to create -- all files already exist."
+    }
 
-export const init = new Command()
-  .description("Scaffold a new Ignition project.")
-  .action(async () => {
-    const code = await initCommand()
-    if (code !== 0) throw new CliExitCode(code)
-  })
+    if (installFailed) {
+      return c.error({
+        code: "INIT_FAILED",
+        message: "Init completed with errors. Dependency installation failed.",
+      })
+    }
+
+    return c.ok(undefined, {
+      cta: {
+        commands: [
+          { command: "run recipe.ts @all", description: "Run the example recipe" },
+          { command: "run --check recipe.ts @all", description: "Dry-run the example recipe" },
+        ],
+      },
+    })
+  },
+})

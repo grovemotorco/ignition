@@ -14,7 +14,7 @@ import type { IgnitionConfig } from "@grovemotorco/ignition"
 
 export default {
   inventory: "inventory.ts",
-  verbose: true,
+  trace: true,
   parallelism: 10,
   errorMode: "fail-at-end",
 } satisfies IgnitionConfig
@@ -24,25 +24,26 @@ Ignition auto-discovers this file in the current working directory.
 
 ## All options
 
-| Field             | Type                                       | Default        | Description                                 |
-| ----------------- | ------------------------------------------ | -------------- | ------------------------------------------- |
-| `inventory`       | `string`                                   | —              | Path to inventory file                      |
-| `format`          | `"pretty" \| "json" \| "minimal"`          | `"pretty"`     | Output format                               |
-| `errorMode`       | `"fail-fast" \| "fail-at-end" \| "ignore"` | `"fail-fast"`  | Error handling strategy                     |
-| `parallelism`     | `number`                                   | `5`            | Max concurrent hosts                        |
-| `hostTimeout`     | `number`                                   | `0`            | Per-host timeout in ms (0 = unlimited)      |
-| `resourceTimeout` | `number`                                   | `30000`        | Per-resource timeout in ms                  |
-| `retries`         | `number`                                   | `2`            | Retry attempts for transient failures       |
-| `retryDelay`      | `number`                                   | `1000`         | Initial retry backoff in ms                 |
-| `multiplex`       | `boolean`                                  | `true`         | SSH connection multiplexing                 |
-| `hostKeyPolicy`   | `"strict" \| "accept-new" \| "off"`        | `"accept-new"` | SSH host key verification                   |
-| `dashboard`       | `string`                                   | —              | Dashboard address (e.g. `"127.0.0.1:9090"`) |
-| `logDir`          | `string`                                   | —              | Directory for NDJSON log files              |
-| `verbose`         | `boolean`                                  | `false`        | Show SSH commands and detailed output       |
-| `cache`           | `boolean`                                  | `false`        | Enable check result caching                 |
-| `cacheTtl`        | `number`                                   | `600000`       | Cache entry lifetime in ms                  |
-| `cacheClear`      | `boolean`                                  | `false`        | Clear cache before running                  |
-| `vars`            | `Record<string, unknown>`                  | —              | Default variables                           |
+| Field             | Type                                       | Default        | Description                                |
+| ----------------- | ------------------------------------------ | -------------- | ------------------------------------------ |
+| `inventory`       | `string`                                   | —              | Path to inventory file                     |
+| `format`          | `"pretty" \| "json" \| "minimal"`          | `"pretty"`     | Output format (used by library consumers)  |
+| `errorMode`       | `"fail-fast" \| "fail-at-end" \| "ignore"` | `"fail-fast"`  | Error handling strategy                    |
+| `parallelism`     | `number`                                   | `5`            | Max concurrent hosts                       |
+| `hostTimeout`     | `number`                                   | `0`            | Per-host timeout in ms (0 = unlimited)     |
+| `resourceTimeout` | `number`                                   | `30000`        | Per-resource timeout in ms                 |
+| `retries`         | `number`                                   | `2`            | Retry attempts for transient failures      |
+| `retryDelay`      | `number`                                   | `1000`         | Initial retry backoff in ms                |
+| `multiplex`       | `boolean`                                  | `true`         | SSH connection multiplexing                |
+| `hostKeyPolicy`   | `"strict" \| "accept-new" \| "off"`        | `"accept-new"` | SSH host key verification                  |
+| `dashboardHost`   | `string`                                   | `"127.0.0.1"`  | Dashboard server hostname for `run` events |
+| `dashboardPort`   | `number`                                   | `9090`         | Dashboard server port for `run` events     |
+| `logDir`          | `string`                                   | —              | Directory for NDJSON log files             |
+| `trace`           | `boolean`                                  | `false`        | Show SSH commands and detailed output      |
+| `cache`           | `boolean`                                  | `false`        | Enable check result caching                |
+| `cacheTtl`        | `number`                                   | `600000`       | Cache entry lifetime in ms                 |
+| `cacheClear`      | `boolean`                                  | `false`        | Clear cache before running                 |
+| `vars`            | `Record<string, unknown>`                  | —              | Default variables                          |
 
 ## Precedence
 
@@ -63,8 +64,10 @@ import type { IgnitionConfig } from "@grovemotorco/ignition"
 
 export default {
   inventory: "inventory.ts",
-  verbose: true,
+  trace: true,
   hostKeyPolicy: "accept-new",
+  dashboardHost: "127.0.0.1",
+  dashboardPort: 9090,
 } satisfies IgnitionConfig
 ```
 
@@ -79,18 +82,6 @@ export default {
   parallelism: 20,
   logDir: "./logs",
   format: "json",
-} satisfies IgnitionConfig
-```
-
-### Dashboard-enabled config
-
-```typescript
-import type { IgnitionConfig } from "@grovemotorco/ignition"
-
-export default {
-  inventory: "inventory.ts",
-  dashboard: "127.0.0.1:9090",
-  verbose: true,
 } satisfies IgnitionConfig
 ```
 

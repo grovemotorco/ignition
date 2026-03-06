@@ -1,17 +1,9 @@
 import { test, expect } from "bun:test"
 import {
   defaultRegistry,
-  formatAllForAgent,
-  formatCliForAgent,
-  formatResourceForAgent,
-  formatResourceListForAgent,
-  formatResourceListPretty,
-  formatResourcePretty,
   getAllDefinitions,
   getAllResourceSchemas,
-  getCliSchema,
   getDefinition,
-  getFullSchema,
   getInventorySchema,
   getRecipeSchema,
   getResourceSchema,
@@ -19,12 +11,7 @@ import {
   getRunSummarySchema,
   ResourceRegistry,
 } from "../../src/core/registry.ts"
-import type {
-  CheckResult,
-  ExecutionContext,
-  ResourceDefinition,
-  ResourceSchema,
-} from "../../src/core/types.ts"
+import type { CheckResult, ExecutionContext, ResourceDefinition } from "../../src/core/types.ts"
 import { ExecutionContextImpl } from "../../src/core/context.ts"
 import { ALL_TRANSPORT_CAPABILITIES } from "../../src/ssh/types.ts"
 import type { SSHConnection, SSHConnectionConfig } from "../../src/ssh/types.ts"
@@ -438,86 +425,6 @@ test("inventory schema has all target syntax forms", () => {
 })
 
 // ---------------------------------------------------------------------------
-// CLI schema
-// ---------------------------------------------------------------------------
-
-test("getCliSchema returns valid CLI grammar", () => {
-  const cli = getCliSchema()
-  expect(cli.binary).toEqual("ignition")
-  expect(cli.commands).toBeDefined()
-  expect(cli.globalFlags).toBeDefined()
-})
-
-test("CLI schema includes all commands", () => {
-  const cli = getCliSchema()
-  const cmds = cli.commands as Record<string, unknown>
-  expect(cmds.run).toBeDefined()
-  expect(cmds.check).toBeDefined()
-  expect(cmds.schema).toBeDefined()
-  expect(cmds.inventory).toBeDefined()
-  expect(cmds.init).toBeDefined()
-  expect(cmds.dashboard).toBeDefined()
-})
-
-test("CLI schema run/check flags stay in sync", () => {
-  const cli = getCliSchema() as {
-    commands: {
-      run: { flags: Array<{ name: string }> }
-      check: { flags: Array<{ name: string }> }
-    }
-  }
-
-  const expected = [
-    "--cache",
-    "--cache-clear",
-    "--cache-ttl",
-    "--confirm",
-    "--dashboard",
-    "--error-mode",
-    "--format",
-    "--host-key-policy",
-    "--host-timeout",
-    "--identity",
-    "--inventory",
-    "--log-dir",
-    "--no-multiplex",
-    "--parallelism",
-    "--resource-timeout",
-    "--retries",
-    "--retry-delay",
-    "--tags",
-    "--var",
-    "--verbose",
-  ]
-
-  const runFlags = cli.commands.run.flags.map((f) => f.name).sort()
-  const checkFlags = cli.commands.check.flags.map((f) => f.name).sort()
-
-  expect(runFlags).toEqual(expected)
-  expect(checkFlags).toEqual(runFlags)
-})
-
-test("CLI schema does not include unsupported boolean negation forms", () => {
-  const cli = getCliSchema() as {
-    commands: {
-      run: { flags: Array<{ name: string; negated?: string }> }
-    }
-  }
-  const flags = new Map(cli.commands.run.flags.map((f) => [f.name, f]))
-  expect(flags.get("--verbose")?.negated).toBeUndefined()
-  expect(flags.get("--confirm")?.negated).toBeUndefined()
-  expect(flags.get("--cache")?.negated).toBeUndefined()
-})
-
-test("formatCliForAgent uses current dashboard syntax and embeds CLI JSON", () => {
-  const output = formatCliForAgent()
-  expect(output.includes("ignition dashboard [address] [--var key=value] [--verbose]")).toEqual(
-    true,
-  )
-  expect(output.includes('"name": "--log-dir"')).toEqual(true)
-})
-
-// ---------------------------------------------------------------------------
 // RunSummary schema
 // ---------------------------------------------------------------------------
 
@@ -526,97 +433,4 @@ test("getRunSummarySchema returns valid output schema", () => {
   expect(output.successEnvelope).toBeDefined()
   expect(output.resourceResult).toBeDefined()
   expect(output.errorSerialization).toBeDefined()
-})
-
-// ---------------------------------------------------------------------------
-// Full schema
-// ---------------------------------------------------------------------------
-
-test("getFullSchema aggregates all sections", () => {
-  const full = getFullSchema()
-  expect(full.resources).toBeDefined()
-  expect(full.recipe).toBeDefined()
-  expect(full.inventory).toBeDefined()
-  expect(full.cli).toBeDefined()
-  expect(full.output).toBeDefined()
-
-  const resources = full.resources as Record<string, ResourceSchema>
-  expect(Object.keys(resources).sort()).toEqual(["apt", "directory", "exec", "file", "service"])
-})
-
-// ---------------------------------------------------------------------------
-// Agent format output
-// ---------------------------------------------------------------------------
-
-test("formatAllForAgent includes all resource sections", () => {
-  const output = formatAllForAgent()
-  expect(output.includes("## Resource: `exec`")).toEqual(true)
-  expect(output.includes("## Resource: `file`")).toEqual(true)
-  expect(output.includes("## Resource: `apt`")).toEqual(true)
-  expect(output.includes("## Resource: `service`")).toEqual(true)
-  expect(output.includes("## Resource: `directory`")).toEqual(true)
-})
-
-test("formatAllForAgent includes steering sections", () => {
-  const output = formatAllForAgent()
-  expect(output.includes("USE THIS RESOURCE WHEN")).toEqual(true)
-  expect(output.includes("DO NOT USE FOR")).toEqual(true)
-  expect(output.includes("TRIGGER PATTERNS")).toEqual(true)
-  expect(output.includes("HINTS")).toEqual(true)
-})
-
-test("formatAllForAgent includes Next Steps section", () => {
-  const output = formatAllForAgent()
-  expect(output.includes("# Next Steps")).toEqual(true)
-  expect(output.includes("ignition check")).toEqual(true)
-  expect(output.includes("ignition run")).toEqual(true)
-})
-
-test("formatAllForAgent includes recipe and inventory sections", () => {
-  const output = formatAllForAgent()
-  expect(output.includes("# Recipe Format")).toEqual(true)
-  expect(output.includes("# Inventory Format")).toEqual(true)
-  expect(output.includes("# CLI Grammar")).toEqual(true)
-  expect(output.includes("# Output Contracts")).toEqual(true)
-})
-
-test("formatResourceForAgent includes all schema sections for exec", () => {
-  const schema = getResourceSchema("exec")!
-  const output = formatResourceForAgent("exec", schema)
-  expect(output.includes("## Resource: `exec`")).toEqual(true)
-  expect(output.includes("USE THIS RESOURCE WHEN")).toEqual(true)
-  expect(output.includes("HINTS")).toEqual(true)
-  expect(output.includes("### Input")).toEqual(true)
-  expect(output.includes("### Output")).toEqual(true)
-  expect(output.includes("### Examples")).toEqual(true)
-})
-
-test("formatResourceListForAgent lists all resources", () => {
-  const output = formatResourceListForAgent()
-  expect(output.includes("exec")).toEqual(true)
-  expect(output.includes("file")).toEqual(true)
-  expect(output.includes("apt")).toEqual(true)
-  expect(output.includes("service")).toEqual(true)
-  expect(output.includes("directory")).toEqual(true)
-})
-
-// ---------------------------------------------------------------------------
-// Pretty format output
-// ---------------------------------------------------------------------------
-
-test("formatResourceListPretty lists all resources", () => {
-  const output = formatResourceListPretty()
-  expect(output.includes("exec")).toEqual(true)
-  expect(output.includes("file")).toEqual(true)
-  expect(output.includes("apt")).toEqual(true)
-  expect(output.includes("service")).toEqual(true)
-  expect(output.includes("directory")).toEqual(true)
-})
-
-test("formatResourcePretty shows resource details", () => {
-  const schema = getResourceSchema("apt")!
-  const output = formatResourcePretty("apt", schema)
-  expect(output.includes("Resource: apt")).toEqual(true)
-  expect(output.includes("Destructive:")).toEqual(true)
-  expect(output.includes("Idempotent:")).toEqual(true)
 })

@@ -1,86 +1,79 @@
 /**
  * Inventory type definitions.
  *
- * The inventory maps target names to concrete host connection details and
- * variables. TypeScript inventory files default-export an `Inventory` object.
- * See ADR-0007 and ISSUE-0010.
+ * Zod schemas are the source of truth — TypeScript types are derived via
+ * `z.infer`. The inventory maps target names to concrete host connection
+ * details and variables. TypeScript inventory files default-export an
+ * `Inventory` object. See ADR-0007 and ISSUE-0010.
  */
 
+import { z } from "incur"
+
 /** Connection defaults applied to all hosts unless overridden. */
-export interface InventoryDefaults {
-  /** Default SSH user. */
-  readonly user?: string
-  /** Default SSH port. */
-  readonly port?: number
-  /** Default path to SSH private key. */
-  readonly privateKey?: string
-}
+export const InventoryDefaultsSchema = z.object({
+  user: z.string().optional(),
+  port: z.number().optional(),
+  privateKey: z.string().optional(),
+})
+
+export type InventoryDefaults = z.infer<typeof InventoryDefaultsSchema>
 
 /** A host entry in the inventory. */
-export interface Host {
-  /** SSH hostname or IP address. */
-  readonly hostname: string
-  /** SSH user (overrides group/global/default). */
-  readonly user?: string
-  /** SSH port (overrides group/global/default). */
-  readonly port?: number
-  /** Path to SSH private key (overrides group/global/default). */
-  readonly privateKey?: string
-  /** Host-level variables (highest precedence). */
-  readonly vars?: Record<string, unknown>
-}
+export const HostSchema = z.object({
+  hostname: z.string(),
+  user: z.string().optional(),
+  port: z.number().optional(),
+  privateKey: z.string().optional(),
+  vars: z.record(z.string(), z.unknown()).optional(),
+})
+
+export type Host = z.infer<typeof HostSchema>
 
 /** A group of hosts with shared variables. */
-export interface HostGroup {
-  /** Hosts in this group, keyed by logical name. */
-  readonly hosts: Readonly<Record<string, Host>>
-  /** Group-level variables (applied to all hosts in the group). */
-  readonly vars?: Record<string, unknown>
-}
+export const HostGroupSchema = z.object({
+  hosts: z.record(z.string(), HostSchema),
+  vars: z.record(z.string(), z.unknown()).optional(),
+})
+
+export type HostGroup = z.infer<typeof HostGroupSchema>
 
 /**
  * Top-level inventory structure.
  *
- * An inventory file default-exports an object conforming to this interface.
+ * An inventory file default-exports an object conforming to this type.
  * Variable merging follows: host vars > group vars > global vars > defaults.
  */
-export interface Inventory {
-  /** Connection defaults applied to all hosts. */
-  readonly defaults?: InventoryDefaults
-  /** Global variables (lowest precedence after defaults). */
-  readonly vars?: Record<string, unknown>
-  /** Named groups of hosts. Referenced as `@groupName` in targets. */
-  readonly groups?: Readonly<Record<string, HostGroup>>
-  /** Standalone hosts not belonging to any group. */
-  readonly hosts?: Readonly<Record<string, Host>>
-}
+export const InventorySchema = z.object({
+  defaults: InventoryDefaultsSchema.optional(),
+  vars: z.record(z.string(), z.unknown()).optional(),
+  groups: z.record(z.string(), HostGroupSchema).optional(),
+  hosts: z.record(z.string(), HostSchema).optional(),
+})
+
+export type Inventory = z.infer<typeof InventorySchema>
 
 /**
  * A fully resolved host ready for SSH connection.
  *
  * Produced by `resolveTargets()` after merging variables and applying defaults.
  */
-export interface ResolvedHost {
-  /** Logical host name (from inventory or ad-hoc). */
-  readonly name: string
-  /** SSH hostname or IP address. */
-  readonly hostname: string
-  /** SSH user. */
-  readonly user: string
-  /** SSH port. */
-  readonly port: number
-  /** Path to SSH private key, if specified. */
-  readonly privateKey?: string
-  /** Merged variables: host vars > group vars > global vars. */
-  readonly vars: Record<string, unknown>
-}
+export const ResolvedHostSchema = z.object({
+  name: z.string(),
+  hostname: z.string(),
+  user: z.string(),
+  port: z.number(),
+  privateKey: z.string().optional(),
+  vars: z.record(z.string(), z.unknown()),
+})
+
+export type ResolvedHost = z.infer<typeof ResolvedHostSchema>
 
 /**
  * The shape of a loaded inventory module after dynamic import.
  */
-export interface InventoryModule {
-  /** The resolved inventory object. */
-  readonly inventory: Inventory
-  /** Resolved path to the inventory file. */
-  readonly path: string
-}
+export const InventoryModuleSchema = z.object({
+  inventory: InventorySchema,
+  path: z.string(),
+})
+
+export type InventoryModule = z.infer<typeof InventoryModuleSchema>

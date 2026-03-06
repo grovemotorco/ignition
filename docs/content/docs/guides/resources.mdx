@@ -101,7 +101,7 @@ Every resource follows a two-phase cycle managed by `executeResource()`:
 
 This gives you:
 
-- **Free dry-runs** — `ignition check` runs `check()` for every resource without calling `apply()`
+- **Free dry-runs** — `ignition run --check` runs `check()` for every resource without calling `apply()`
 - **Safe re-runs** — if everything is already correct, nothing changes
 - **Explicit failures** — any resource that can't converge reports `failed`
 

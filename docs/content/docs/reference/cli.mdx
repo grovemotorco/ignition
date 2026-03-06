@@ -11,26 +11,16 @@ ignition <command> [options]
 
 ### `run`
 
-Apply a recipe to target hosts.
+Apply a recipe to target hosts. Use `--check` for a dry-run.
 
 ```bash
-ignition run <recipe> <target...> [options]
+ignition run <recipe> <targets> [options]
 ```
 
-| Argument | Description                                                  |
-| -------- | ------------------------------------------------------------ |
-| `recipe` | Path to recipe `.ts` file                                    |
-| `target` | One or more targets (host names, `@group`, `user@host:port`) |
-
-### `check`
-
-Dry-run a recipe. Runs `check()` for every resource without calling `apply()`. Shows what would change.
-
-```bash
-ignition check <recipe> <target...> [options]
-```
-
-Same arguments and options as `run`.
+| Argument  | Description                                                                       |
+| --------- | --------------------------------------------------------------------------------- |
+| `recipe`  | Path to recipe `.ts` file                                                         |
+| `targets` | Comma-separated targets: host names, `@group`, `user@host:port` (e.g. `@web,@db`) |
 
 ### `inventory`
 
@@ -46,11 +36,10 @@ ignition inventory [file] [options]
 
 Options:
 
-| Flag                     | Default  | Description                    |
-| ------------------------ | -------- | ------------------------------ |
-| `-i, --inventory <file>` | —        | Path to inventory file         |
-| `-v, --verbose`          | `false`  | Enable verbose output          |
-| `-f, --format <fmt>`     | `pretty` | `pretty`, `json`, or `minimal` |
+| Flag                 | Default | Description                          |
+| -------------------- | ------- | ------------------------------------ |
+| `--inventory <file>` | —       | Path to inventory file (alternative) |
+| `--trace`            | `false` | Enable detailed output               |
 
 ### `init`
 
@@ -67,76 +56,71 @@ Creates `recipe.ts`, `inventory.ts`, `ignition.config.ts`, and `package.json` (i
 Start a persistent web dashboard server.
 
 ```bash
-ignition dashboard [host:port]
+ignition dashboard [options]
 ```
-
-| Argument    | Default          | Description  |
-| ----------- | ---------------- | ------------ |
-| `host:port` | `127.0.0.1:9090` | Bind address |
 
 Options:
 
-| Flag                | Default | Description                         |
-| ------------------- | ------- | ----------------------------------- |
-| `--var history=<n>` | `10`    | Number of historical runs to retain |
-| `-v, --verbose`     | `false` | Enable verbose output               |
+| Flag                | Default     | Description                         |
+| ------------------- | ----------- | ----------------------------------- |
+| `--host <host>`     | `127.0.0.1` | Dashboard hostname                  |
+| `--port <port>`     | `9090`      | Dashboard port                      |
+| `--max-history <n>` | `10`        | Number of historical runs to retain |
 
 ### `schema`
 
 Display schema and resource information. Useful for tooling and integrations.
 
 ```bash
-ignition schema <subcommand> [options]
+ignition schema <command>
 ```
 
 Subcommands:
 
 | Subcommand        | Description                  |
 | ----------------- | ---------------------------- |
-| `all`             | Full schema (all sections)   |
 | `resources`       | List all resource schemas    |
 | `resource <name>` | Schema for a single resource |
 | `recipe`          | Recipe function schema       |
 | `inventory`       | Inventory file schema        |
-| `cli`             | CLI options schema           |
+| `output`          | Run output contract schema   |
 
-Options:
+## Options for `run`
 
-| Flag                 | Default | Description                  |
-| -------------------- | ------- | ---------------------------- |
-| `-f, --format <fmt>` | `json`  | `json`, `pretty`, or `agent` |
+### Dry-run
 
-## Options for `run` and `check`
+| Flag      | Description                      |
+| --------- | -------------------------------- |
+| `--check` | Dry-run without applying changes |
 
 ### Connection options
 
 | Flag                         | Default      | Description                         |
 | ---------------------------- | ------------ | ----------------------------------- |
-| `-i, --inventory <file>`     | —            | Path to inventory file              |
+| `--inventory <file>`         | —            | Path to inventory file              |
 | `--host-key-policy <policy>` | `accept-new` | `strict`, `accept-new`, or `off`    |
 | `--identity <path>`          | —            | Path to SSH private key             |
 | `--no-multiplex`             | —            | Disable SSH connection multiplexing |
 
 ### Execution options
 
-| Flag                      | Default     | Description                                     |
-| ------------------------- | ----------- | ----------------------------------------------- |
-| `--error-mode <mode>`     | `fail-fast` | `fail-fast`, `fail-at-end`, or `ignore`         |
-| `--tags <tags>`           | —           | Filter recipes by `meta.tags` (comma-separated) |
-| `--var <key=value>`       | —           | Set a variable (repeatable)                     |
-| `--confirm`               | —           | Prompt before applying                          |
-| `--parallelism <n>`       | `5`         | Max concurrent hosts                            |
-| `--host-timeout <ms>`     | `0`         | Per-host timeout (0 = unlimited)                |
-| `--resource-timeout <ms>` | `30000`     | Per-resource timeout                            |
-| `--retries <n>`           | `2`         | Retry attempts for transient failures           |
-| `--retry-delay <ms>`      | `1000`      | Initial retry backoff                           |
+| Flag                      | Default     | Description                             |
+| ------------------------- | ----------- | --------------------------------------- |
+| `--error-mode <mode>`     | `fail-fast` | `fail-fast`, `fail-at-end`, or `ignore` |
+| `--tags <tags>`           | —           | Filter resources by tag (repeatable)    |
+| `--var <key=value>`       | —           | Set a variable (repeatable)             |
+| `--confirm`               | —           | Prompt before applying                  |
+| `--parallelism <n>`       | `5`         | Max concurrent hosts                    |
+| `--host-timeout <ms>`     | `0`         | Per-host timeout (0 = unlimited)        |
+| `--resource-timeout <ms>` | `30000`     | Per-resource timeout                    |
+| `--retries <n>`           | `2`         | Retry attempts for transient failures   |
+| `--retry-delay <ms>`      | `1000`      | Initial retry backoff                   |
 
 ### Output options
 
-| Flag                 | Default  | Description                           |
-| -------------------- | -------- | ------------------------------------- |
-| `-v, --verbose`      | —        | Show SSH commands and detailed output |
-| `-f, --format <fmt>` | `pretty` | `pretty`, `json`, or `minimal`        |
+| Flag      | Default | Description                           |
+| --------- | ------- | ------------------------------------- |
+| `--trace` | —       | Show SSH commands and detailed output |
 
 ### Cache options
 
@@ -148,9 +132,10 @@ Options:
 
 ### Dashboard options
 
-| Flag                      | Default          | Description         |
-| ------------------------- | ---------------- | ------------------- |
-| `--dashboard [host:port]` | `127.0.0.1:9090` | Start web dashboard |
+| Flag                      | Default     | Description                            |
+| ------------------------- | ----------- | -------------------------------------- |
+| `--dashboard-host <host>` | `127.0.0.1` | Dashboard server hostname to report to |
+| `--dashboard-port <port>` | `9090`      | Dashboard server port to report to     |
 
 ### Logging options
 
@@ -160,10 +145,12 @@ Options:
 
 ## Global options
 
-| Flag            | Description            |
-| --------------- | ---------------------- |
-| `-V, --version` | Print version and exit |
-| `--help`        | Show help              |
+| Flag        | Description                                           |
+| ----------- | ----------------------------------------------------- |
+| `--version` | Print version and exit                                |
+| `--help`    | Show help                                             |
+| `--format`  | Output format (`toon`, `json`, `yaml`, `md`, `jsonl`) |
+| `--json`    | Shorthand for `--format json`                         |
 
 ## Exit codes
 

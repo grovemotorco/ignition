@@ -21,13 +21,12 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import {
-  createResources,
-  createSystemSSHConnection,
-  ExecutionContextImpl,
-  runRecipe,
-} from "../src/index.ts"
-import type { ExecutionContext, HostContext, ResourceResult, SSHConnection } from "../src/index.ts"
+import { createResources } from "../src/resources/index.ts"
+import { createSystemSSHConnection } from "../src/ssh/connection.ts"
+import { ExecutionContextImpl } from "../src/core/context.ts"
+import { runRecipe } from "../src/core/runner.ts"
+import type { ExecutionContext, HostContext, ResourceResult } from "../src/core/types.ts"
+import type { SSHConnection } from "../src/ssh/types.ts"
 
 // ---------------------------------------------------------------------------
 // Config

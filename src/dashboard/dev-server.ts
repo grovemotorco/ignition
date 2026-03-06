@@ -2,8 +2,14 @@
 /**
  * Mock event server for dashboard UI development.
  *
- * Runs DashboardServer on :9090 and Vite dev server on :5173 in a single
- * process, with HMR and API/WS proxying handled automatically.
+ * Starts a DashboardServer on :9090 with simulation routes for generating
+ * fake run events. Run the Vite dev server separately for the UI:
+ *
+ *   Terminal 1:  bun run dev:ui                          (this server)
+ *   Terminal 2:  bun run --cwd src/dashboard/ui vite     (Vite HMR on :5173)
+ *
+ * The Vite proxy config in ui/vite.config.ts forwards /ws and /api to :9090.
+ * Open http://localhost:5173 in a browser.
  *
  * Simulations are triggered on demand:
  *   POST /api/simulate          — trigger a single simulated run
@@ -11,17 +17,10 @@
  *   POST /api/simulate/stop     — stop auto-simulation
  *
  * Pass `--auto` to start with auto-simulation enabled.
- *
- * Usage:
- *   bun run src/dashboard/dev-server.ts          # server + Vite
- *   bun run src/dashboard/dev-server.ts --auto   # auto-simulate
- *
- * Open http://localhost:5173 in a browser.
  */
 
 import { DashboardServer } from "./server.ts"
 import { EventBus } from "../output/events.ts"
-import { startViteDev, type ViteDevHandle } from "./vite-dev.ts"
 
 const autoFlag = process.argv.slice(2).includes("--auto")
 
@@ -242,18 +241,12 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 const server = new DevDashboardServer({ port: 9090, staticDir: null })
 await server.start()
 
-let viteHandle: ViteDevHandle | undefined
-try {
-  viteHandle = await startViteDev({ apiHostname: "127.0.0.1", apiPort: server.port })
-} catch (err) {
-  console.error("Failed to start Vite dev server:", err)
-  process.exit(1)
-}
-
 console.log("")
-console.log(`  Vite dev server:  ${viteHandle.url}`)
 console.log(`  API server:       http://127.0.0.1:${server.port}`)
 console.log(`  WebSocket:        ws://127.0.0.1:${server.port}/ws`)
+console.log("")
+console.log("Start the UI dev server in another terminal:")
+console.log("  bun run --cwd src/dashboard/ui vite")
 console.log("")
 console.log("Simulate routes:")
 console.log("  POST /api/simulate       — trigger one run")
@@ -269,7 +262,6 @@ if (autoFlag) {
 const onSignal = async () => {
   console.log("\nShutting down...")
   server.stopAutoSimulate()
-  if (viteHandle) await viteHandle.close()
   await server.shutdown()
   process.exit(0)
 }

@@ -76,7 +76,7 @@ test("formatError — includes hint for SSHCommandError", () => {
   const err = new SSHCommandError("ls", 1, "", "")
   const output = formatError(err)
 
-  expect(output).toContain("--verbose")
+  expect(output).toContain("--trace")
 })
 
 test("formatError — includes hint for TransferError", () => {

@@ -17,7 +17,7 @@ CLI args
       → create ExecutionContext (one per host per run)
       → execute recipe(ctx)
       → accumulate results into RunSummary
-  → format output (pretty / json / minimal)
+  → format output
   → exit code (0 = success, 1 = failures)
 ```
 
@@ -97,19 +97,23 @@ Web dashboard.
 
 ### `src/cli/` and `src/lib/`
 
-CLI and utilities.
+CLI and utilities. The CLI uses the [incur](https://github.com/wevm/incur) framework.
 
-| File                     | Purpose                                                              |
-| ------------------------ | -------------------------------------------------------------------- |
-| `cli.ts`                 | CLI entry point (`main()` + error handling)                          |
-| `cli/index.ts`           | Command assembly and top-level CLI wiring                            |
-| `cli/parsers.ts`         | Enum parsers, validators, and collectors for CLI flags               |
-| `cli/types.ts`           | Shared CLI option types                                              |
-| `cli/commands/`          | Command implementations (init, inventory, dashboard, schema, shared) |
-| `cli/commands/shared.ts` | Common recipe execution pipeline                                     |
-| `cli/runtime.ts`         | Exit code and error formatting behavior                              |
-| `lib/config.ts`          | Config file loading and validation                                   |
-| `lib/errors.ts`          | User-facing error rendering utilities                                |
+| File                        | Purpose                                            |
+| --------------------------- | -------------------------------------------------- |
+| `cli.ts`                    | CLI entry point                                    |
+| `cli/index.ts`              | Root `Cli.create()` + command registration         |
+| `cli/logger.ts`             | Logger middleware for human-readable stderr output |
+| `cli/commands/run.ts`       | `run` command (includes `--check` for dry-runs)    |
+| `cli/commands/init.ts`      | `init` command                                     |
+| `cli/commands/inventory.ts` | `inventory` command                                |
+| `cli/commands/dashboard.ts` | `dashboard` command                                |
+| `cli/commands/schema.ts`    | `schema` command group                             |
+| `cli/commands/test.ts`      | Developer fixture commands                         |
+| `lib/types.ts`              | Shared CLI option types                            |
+| `lib/parsers.ts`            | Dashboard address parser                           |
+| `lib/config.ts`             | Config file loading and validation                 |
+| `lib/errors.ts`             | User-facing error rendering utilities              |
 
 ## Key design decisions
 

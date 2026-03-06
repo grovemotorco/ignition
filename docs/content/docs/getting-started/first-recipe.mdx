@@ -42,12 +42,12 @@ Each resource call describes a piece of desired state:
 
 Resources run in order. Each one checks the remote state first, then applies changes only if needed.
 
-## Dry-run with `check`
+## Dry-run with `--check`
 
 Preview what would change without touching the server:
 
 ```bash
-ignition check setup.ts admin@your-server.com
+ignition run --check setup.ts admin@your-server.com
 ```
 
 The output shows each resource and whether it would need changes:

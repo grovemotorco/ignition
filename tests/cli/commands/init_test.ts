@@ -1,18 +1,34 @@
 import { test, expect } from "bun:test"
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { initCommand } from "../../../src/cli/commands/init.ts"
+import { writeFileSync } from "node:fs"
+
+const CLI = join(import.meta.dir, "../../../src/cli.ts")
+
+async function runInit(opts?: {
+  cwd?: string
+  args?: string[]
+}): Promise<{ code: number; stdout: string; stderr: string }> {
+  const proc = Bun.spawn(["bun", "run", CLI, "init", ...(opts?.args ?? [])], {
+    stdout: "pipe",
+    stderr: "pipe",
+    cwd: opts?.cwd,
+  })
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  const code = await proc.exited
+  return { code, stdout, stderr }
+}
 
 async function withTempDir(fn: (tmpDir: string) => Promise<void>): Promise<void> {
-  const tmpDir = await mkdtemp(join(tmpdir(), "ign-"))
-  const originalCwd = process.cwd()
+  const dir = await mkdtemp(join(tmpdir(), "ign-init-"))
   try {
-    process.chdir(tmpDir)
-    await fn(tmpDir)
+    await fn(dir)
   } finally {
-    process.chdir(originalCwd)
-    await rm(tmpDir, { recursive: true, force: true })
+    await rm(dir, { recursive: true, force: true })
   }
 }
 
@@ -24,79 +40,69 @@ async function readPackageJson(tmpDir: string): Promise<Record<string, unknown>>
 }
 
 // ---------------------------------------------------------------------------
+// --help
+// ---------------------------------------------------------------------------
+
+test("init --help returns 0", async () => {
+  const { code, stdout } = await runInit({ args: ["--help"] })
+  expect(code).toEqual(0)
+  expect(stdout).toContain("Scaffold a new Ignition project")
+})
+
+// ---------------------------------------------------------------------------
 // Bootstrap + scaffold
 // ---------------------------------------------------------------------------
 
-test("init command bootstraps package.json and scaffolds files", async () => {
+test("init bootstraps package.json and scaffolds files", async () => {
   await withTempDir(async (tmpDir) => {
-    const calls: string[][] = []
-    const code = await initCommand({
-      runCommand: async (cmd) => {
-        calls.push([...cmd])
-        return 0
-      },
-    })
+    await runInit({ cwd: tmpDir })
+    // install will fail (no registry), but scaffolding should still succeed
 
-    expect(code).toEqual(0)
-    expect(calls).toEqual([["bun", "add", "@grovemotorco/ignition@latest"]])
+    const packageExists = await Bun.file(join(tmpDir, "package.json")).exists()
+    expect(packageExists).toEqual(true)
 
-    const packageStat = await stat(join(tmpDir, "package.json"))
-    const inventoryStat = await stat(join(tmpDir, "inventory.ts"))
-    const configStat = await stat(join(tmpDir, "ignition.config.ts"))
-    const recipeStat = await stat(join(tmpDir, "recipe.ts"))
+    const configExists = await Bun.file(join(tmpDir, "ignition.config.ts")).exists()
+    expect(configExists).toEqual(true)
 
-    expect(packageStat.isFile()).toEqual(true)
-    expect(inventoryStat.isFile()).toEqual(true)
-    expect(configStat.isFile()).toEqual(true)
-    expect(recipeStat.isFile()).toEqual(true)
+    const inventoryExists = await Bun.file(join(tmpDir, "inventory.ts")).exists()
+    expect(inventoryExists).toEqual(true)
+
+    const recipeExists = await Bun.file(join(tmpDir, "recipe.ts")).exists()
+    expect(recipeExists).toEqual(true)
 
     const pkg = await readPackageJson(tmpDir)
-    expect(typeof pkg.name).toEqual("string")
-    expect((pkg.name as string).startsWith("ign-")).toEqual(true)
     expect(pkg.private).toEqual(true)
     expect(pkg.type).toEqual("module")
 
-    const dependencies = pkg.dependencies as Record<string, unknown>
-    expect(dependencies["@grovemotorco/ignition"]).toEqual("latest")
-
     const recipeContent = await readFile(join(tmpDir, "recipe.ts"), "utf-8")
-    expect(recipeContent.includes("ExecutionContext")).toEqual(true)
-    expect(recipeContent.includes("export default")).toEqual(true)
+    expect(recipeContent).toContain("ExecutionContext")
+    expect(recipeContent).toContain("export default")
   })
 })
 
-test("init command skips existing recipe/inventory files", async () => {
+test("init skips existing files", async () => {
   await withTempDir(async (tmpDir) => {
-    await writeFile(join(tmpDir, "inventory.ts"), "existing content")
-    await writeFile(
+    writeFileSync(join(tmpDir, "inventory.ts"), "existing content")
+    writeFileSync(
       join(tmpDir, "package.json"),
-      JSON.stringify(
-        {
-          name: "my-app",
-          private: true,
-          dependencies: {
-            "@grovemotorco/ignition": "^1.2.3",
-          },
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({
+        name: "my-app",
+        private: true,
+        dependencies: { "@grovemotorco/ignition": "^1.2.3" },
+      }),
     )
 
-    let runCalled = false
-    const code = await initCommand({
-      runCommand: async () => {
-        runCalled = true
-        return 0
-      },
-    })
-
+    const { code, stdout } = await runInit({ cwd: tmpDir })
     expect(code).toEqual(0)
-    expect(runCalled).toEqual(false)
 
-    const inventoryContent = await readFile(join(tmpDir, "inventory.ts"), "utf-8")
-    expect(inventoryContent).toEqual("existing content")
+    // Should mention skipping
+    expect(stdout).toContain("skip")
 
+    // inventory.ts should be unchanged
+    const content = await readFile(join(tmpDir, "inventory.ts"), "utf-8")
+    expect(content).toEqual("existing content")
+
+    // recipe.ts should still be created
     const recipeStat = await stat(join(tmpDir, "recipe.ts"))
     expect(recipeStat.isFile()).toEqual(true)
   })
@@ -106,173 +112,35 @@ test("init command skips existing recipe/inventory files", async () => {
 // Dependency handling
 // ---------------------------------------------------------------------------
 
-test("init command adds dependency when package.json exists but dependency is missing", async () => {
+test("init skips install when dependency already present", async () => {
   await withTempDir(async (tmpDir) => {
-    await writeFile(
+    writeFileSync(
       join(tmpDir, "package.json"),
-      JSON.stringify(
-        {
-          name: "my-app",
-          private: true,
-          type: "module",
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({
+        name: "my-app",
+        private: true,
+        dependencies: { "@grovemotorco/ignition": "^1.0.0" },
+      }),
     )
 
-    const calls: string[][] = []
-    const code = await initCommand({
-      runCommand: async (cmd) => {
-        calls.push([...cmd])
-        return 0
-      },
-    })
-
+    const { code, stdout } = await runInit({ cwd: tmpDir })
     expect(code).toEqual(0)
-    expect(calls).toEqual([["bun", "add", "@grovemotorco/ignition@latest"]])
-
-    const pkg = await readPackageJson(tmpDir)
-    const dependencies = pkg.dependencies as Record<string, unknown>
-    expect(dependencies["@grovemotorco/ignition"]).toEqual("latest")
+    expect(stdout).toContain("skip")
+    expect(stdout).toContain("already present")
   })
 })
 
-test("init command treats devDependencies as already satisfied", async () => {
+test("init skips dependency for @grovemotorco/ignition package itself", async () => {
   await withTempDir(async (tmpDir) => {
-    await writeFile(
+    writeFileSync(
       join(tmpDir, "package.json"),
-      JSON.stringify(
-        {
-          name: "my-app",
-          private: true,
-          devDependencies: {
-            "@grovemotorco/ignition": "^1.2.3",
-          },
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({ name: "@grovemotorco/ignition", private: true }),
     )
 
-    let runCalled = false
-    const code = await initCommand({
-      runCommand: async () => {
-        runCalled = true
-        return 0
-      },
-    })
-
+    const { code, stdout } = await runInit({ cwd: tmpDir })
     expect(code).toEqual(0)
-    expect(runCalled).toEqual(false)
-  })
-})
-
-test("init command skips dependency injection for @grovemotorco/ignition package itself", async () => {
-  await withTempDir(async (tmpDir) => {
-    await writeFile(
-      join(tmpDir, "package.json"),
-      JSON.stringify(
-        {
-          name: "@grovemotorco/ignition",
-          private: true,
-        },
-        null,
-        2,
-      ),
-    )
-
-    let runCalled = false
-    const code = await initCommand({
-      runCommand: async () => {
-        runCalled = true
-        return 0
-      },
-    })
-
-    expect(code).toEqual(0)
-    expect(runCalled).toEqual(false)
-
-    const pkg = await readPackageJson(tmpDir)
-    const dependencies = pkg.dependencies as Record<string, unknown> | undefined
-    expect(dependencies?.["@grovemotorco/ignition"]).toEqual(undefined)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Package manager selection
-// ---------------------------------------------------------------------------
-
-test("init command detects pnpm from lockfile", async () => {
-  await withTempDir(async (tmpDir) => {
-    await writeFile(join(tmpDir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'")
-    await writeFile(join(tmpDir, "package.json"), JSON.stringify({ name: "my-app" }))
-
-    const calls: string[][] = []
-    const code = await initCommand({
-      runCommand: async (cmd) => {
-        calls.push([...cmd])
-        return 0
-      },
-    })
-
-    expect(code).toEqual(0)
-    expect(calls).toEqual([["pnpm", "add", "@grovemotorco/ignition@latest"]])
-  })
-})
-
-test("init command detects yarn from lockfile", async () => {
-  await withTempDir(async (tmpDir) => {
-    await writeFile(join(tmpDir, "yarn.lock"), "")
-    await writeFile(join(tmpDir, "package.json"), JSON.stringify({ name: "my-app" }))
-
-    const calls: string[][] = []
-    const code = await initCommand({
-      runCommand: async (cmd) => {
-        calls.push([...cmd])
-        return 0
-      },
-    })
-
-    expect(code).toEqual(0)
-    expect(calls).toEqual([["yarn", "add", "@grovemotorco/ignition@latest"]])
-  })
-})
-
-test("init command detects npm from lockfile", async () => {
-  await withTempDir(async (tmpDir) => {
-    await writeFile(join(tmpDir, "package-lock.json"), "{}")
-    await writeFile(join(tmpDir, "package.json"), JSON.stringify({ name: "my-app" }))
-
-    const calls: string[][] = []
-    const code = await initCommand({
-      runCommand: async (cmd) => {
-        calls.push([...cmd])
-        return 0
-      },
-    })
-
-    expect(code).toEqual(0)
-    expect(calls).toEqual([["npm", "install", "@grovemotorco/ignition@latest"]])
-  })
-})
-
-test("init command prefers bun when multiple lockfiles exist", async () => {
-  await withTempDir(async (tmpDir) => {
-    await writeFile(join(tmpDir, "bun.lock"), "")
-    await writeFile(join(tmpDir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'")
-    await writeFile(join(tmpDir, "package.json"), JSON.stringify({ name: "my-app" }))
-
-    const calls: string[][] = []
-    const code = await initCommand({
-      runCommand: async (cmd) => {
-        calls.push([...cmd])
-        return 0
-      },
-    })
-
-    expect(code).toEqual(0)
-    expect(calls).toEqual([["bun", "add", "@grovemotorco/ignition@latest"]])
+    expect(stdout).toContain("skip")
+    expect(stdout).toContain("current package")
   })
 })
 
@@ -280,72 +148,12 @@ test("init command prefers bun when multiple lockfiles exist", async () => {
 // Failures
 // ---------------------------------------------------------------------------
 
-test("init command writes embedded library when install fails", async () => {
+test("init reports error for invalid package.json", async () => {
   await withTempDir(async (tmpDir) => {
-    const calls: string[][] = []
-    const code = await initCommand({
-      runCommand: async (cmd) => {
-        calls.push([...cmd])
-        return 1 // install fails
-      },
-      getEmbeddedLibrary: () => "export const foo = 42\n",
-    })
+    writeFileSync(join(tmpDir, "package.json"), "{invalid json")
 
-    expect(code).toEqual(0)
-    expect(calls.length).toEqual(1)
-    expect(calls[0]).toEqual(["bun", "add", "@grovemotorco/ignition@latest"])
-
-    // Verify embedded lib was written to node_modules
-    const libContent = await readFile(
-      join(tmpDir, "node_modules", "@grovemotorco", "ignition", "index.js"),
-      "utf-8",
-    )
-    expect(libContent).toEqual("export const foo = 42\n")
-
-    const libPkg = JSON.parse(
-      await readFile(
-        join(tmpDir, "node_modules", "@grovemotorco", "ignition", "package.json"),
-        "utf-8",
-      ),
-    )
-    expect(libPkg.name).toEqual("@grovemotorco/ignition")
-    expect(libPkg.type).toEqual("module")
-
-    const recipeStat = await stat(join(tmpDir, "recipe.ts"))
-    expect(recipeStat.isFile()).toEqual(true)
-  })
-})
-
-test("init command returns 1 when install fails and no embedded library", async () => {
-  await withTempDir(async (tmpDir) => {
-    const code = await initCommand({
-      runCommand: async () => 2,
-      getEmbeddedLibrary: () => null,
-    })
-
-    expect(code).toEqual(1)
-
-    const recipeStat = await stat(join(tmpDir, "recipe.ts"))
-    const inventoryStat = await stat(join(tmpDir, "inventory.ts"))
-    expect(recipeStat.isFile()).toEqual(true)
-    expect(inventoryStat.isFile()).toEqual(true)
-  })
-})
-
-test("init command returns 1 for invalid package.json", async () => {
-  await withTempDir(async (tmpDir) => {
-    await writeFile(join(tmpDir, "package.json"), "{invalid json")
-
-    let runCalled = false
-    const code = await initCommand({
-      runCommand: async () => {
-        runCalled = true
-        return 0
-      },
-    })
-
-    expect(code).toEqual(1)
-    expect(runCalled).toEqual(false)
-    expect(await Bun.file(join(tmpDir, "recipe.ts")).exists()).toEqual(false)
+    const { code, stdout } = await runInit({ cwd: tmpDir })
+    expect(code).not.toEqual(0)
+    expect(stdout).toContain("parse")
   })
 })

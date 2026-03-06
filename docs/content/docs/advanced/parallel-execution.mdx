@@ -15,7 +15,7 @@ When targeting multiple hosts, Ignition uses a worker pool pattern:
 4. Results are collected in input order (deterministic) regardless of completion order.
 
 ```bash
-ignition run deploy.ts @web -i hosts.ts --parallelism 10
+ignition run deploy.ts @web --inventory hosts.ts --parallelism 10
 ```
 
 ## The `--parallelism` flag
@@ -28,13 +28,13 @@ The actual concurrency is `min(parallelism, number of hosts)`. If you have 3 hos
 
 ```bash
 # Run against 20 hosts, 5 at a time (default)
-ignition run deploy.ts @all -i hosts.ts
+ignition run deploy.ts @all --inventory hosts.ts
 
 # Run against 20 hosts, 20 at a time (all parallel)
-ignition run deploy.ts @all -i hosts.ts --parallelism 20
+ignition run deploy.ts @all --inventory hosts.ts --parallelism 20
 
 # Run sequentially (one at a time)
-ignition run deploy.ts @all -i hosts.ts --parallelism 1
+ignition run deploy.ts @all --inventory hosts.ts --parallelism 1
 ```
 
 ## Fail-fast cancellation
@@ -55,7 +55,7 @@ In `fail-at-end` and `ignore` modes, other hosts continue running even when one 
 Set a maximum time for each host's complete recipe execution:
 
 ```bash
-ignition run deploy.ts @web -i hosts.ts --host-timeout 300000  # 5 minutes
+ignition run deploy.ts @web --inventory hosts.ts --host-timeout 300000  # 5 minutes
 ```
 
 | Flag                  | Default | Description                      |
@@ -101,7 +101,7 @@ Each level can abort the levels below it. When a signal fires, in-progress SSH s
 Set parallelism to 1 for strict sequential execution:
 
 ```bash
-ignition run deploy.ts @web -i hosts.ts --parallelism 1
+ignition run deploy.ts @web --inventory hosts.ts --parallelism 1
 ```
 
 This is useful for rolling deploys where you want to verify each host before proceeding.

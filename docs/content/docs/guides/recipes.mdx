@@ -114,7 +114,7 @@ export default async function (ctx: ExecutionContext) {
 Filter recipes by tag with `--tags`:
 
 ```bash
-ignition run deploy.ts @web -i hosts.ts --tags web,deploy
+ignition run deploy.ts @web --inventory hosts.ts --tags web,deploy
 ```
 
 When `--tags` is set, the recipe only runs if its tags overlap with the selected tags.

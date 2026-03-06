@@ -25,8 +25,8 @@ export default async function (ctx: ExecutionContext) {
 ```
 
 ```bash
-ignition check deploy.ts @web -i hosts.ts    # dry-run
-ignition run   deploy.ts @web -i hosts.ts    # apply
+ignition run --check deploy.ts @web --inventory hosts.ts    # dry-run
+ignition run deploy.ts @web --inventory hosts.ts            # apply
 ```
 
 ## Install
@@ -44,14 +44,14 @@ bun run src/cli.ts run <recipe.ts> <target>
 
 ## Commands
 
-| Command                               | Description                                 |
-| ------------------------------------- | ------------------------------------------- |
-| `ignition run <recipe> <target>...`   | Apply a recipe to target hosts              |
-| `ignition check <recipe> <target>...` | Dry-run (no changes applied)                |
-| `ignition init`                       | Scaffold a new project                      |
-| `ignition inventory [file]`           | List hosts from inventory                   |
-| `ignition dashboard [address]`        | Start the web dashboard                     |
-| `ignition schema --format agent`      | Machine-readable schema for LLM/agent usage |
+| Command                                   | Description                       |
+| ----------------------------------------- | --------------------------------- |
+| `ignition run <recipe> <targets>`         | Apply a recipe to target hosts    |
+| `ignition run --check <recipe> <targets>` | Dry-run (no changes applied)      |
+| `ignition init`                           | Scaffold a new project            |
+| `ignition inventory [file]`               | List hosts from inventory         |
+| `ignition dashboard`                      | Start the web dashboard           |
+| `ignition schema resources`               | Machine-readable resource schemas |
 
 See the [CLI reference](https://ignition.dev/docs/reference/cli) for full option documentation.
 

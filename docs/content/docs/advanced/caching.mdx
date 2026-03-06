@@ -12,7 +12,7 @@ Every resource `check()` call runs one or more SSH commands to inspect remote st
 ## Enabling caching
 
 ```bash
-ignition check deploy.ts @web -i hosts.ts --cache
+ignition run --check deploy.ts @web --inventory hosts.ts --cache
 ```
 
 | Flag               | Default           | Description                 |
@@ -73,15 +73,15 @@ const cache = new FileCheckResultCache({
 
 ## When to use
 
-- **Repeated checks** — running `ignition check` multiple times while iterating on a recipe
+- **Repeated checks** — running `ignition run --check` multiple times while iterating on a recipe
 - **Large inventories** — checking 50+ hosts where most resources are already in desired state
-- **CI pipelines** — speed up repeated `ignition check` runs in the same pipeline
+- **CI pipelines** — speed up repeated `ignition run --check` runs in the same pipeline
 
 ## Clearing the cache
 
 ```bash
 # Clear before running
-ignition check deploy.ts @web --cache --cache-clear
+ignition run --check deploy.ts @web --cache --cache-clear
 
 # Or delete the file directly
 rm -rf .ignition/check-cache.json

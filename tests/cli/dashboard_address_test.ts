@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { parseDashboardAddress } from "../../src/cli/parsers.ts"
+import { parseDashboardAddress } from "../../src/lib/parsers.ts"
 
 test("parseDashboardAddress parses host:port", () => {
   const [hostname, port] = parseDashboardAddress("0.0.0.0:9090")
