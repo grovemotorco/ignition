@@ -2,8 +2,7 @@
   <img src="./docs/public/logo-small.png" width="150px" alt="Ignition">
 </div>
 
-
-<h3 align="center">Server provisioning in TypeScript.</h3>
+<h3 align="center">Server automation in TypeScript.</h3>
 
 <p align="center">
   <strong>Experimental</strong> &mdash; Ignition is under active development and not yet production-ready.
@@ -17,7 +16,7 @@
 
 ---
 
-Write provisioning recipes as async functions, push them over SSH, get idempotent results. No YAML. No agents. No state files.
+Write server automation recipes as async functions, push them over SSH, get idempotent results. No YAML. No agents. No state files.
 
 ```typescript
 export default async function (ctx: ExecutionContext) {
@@ -69,7 +68,7 @@ See the [CLI reference](https://ignition.sh/docs/reference/cli) for full option 
 
 ## Resources
 
-Five built-in resources cover the vast majority of provisioning tasks:
+Five built-in resources cover the vast majority of server automation tasks:
 
 | Resource                                                              | Description                                      |
 | --------------------------------------------------------------------- | ------------------------------------------------ |

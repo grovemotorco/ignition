@@ -86,7 +86,7 @@ export function IgnitionOG({ title = "Ignition", description, site = "Ignition" 
             />
             <span style={{ fontSize: 20, fontWeight: 600, color: "#f0e4d0" }}>{site}</span>
           </div>
-          <span style={{ fontSize: 16, color: "#6a8a70" }}>Server Provisioning in TypeScript</span>
+          <span style={{ fontSize: 16, color: "#6a8a70" }}>Server Automation in TypeScript</span>
         </div>
       </div>
     </div>

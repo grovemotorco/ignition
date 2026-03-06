@@ -1,5 +1,4 @@
 import Link from "next/link"
-import Image from "next/image"
 import { TerminalFrame } from "@/components/landing/terminal-frame"
 import { InstallCommand } from "@/components/landing/install-command"
 import { RecipeCode } from "@/components/landing/recipe-code"
@@ -55,13 +54,12 @@ const features = [
   {
     icon: LayoutDashboard,
     title: "Real-Time Dashboard",
-    description:
-      "Monitor provisioning runs across hosts in a live web UI. See status as it happens.",
+    description: "Monitor automation runs across hosts in a live web UI. See status as it happens.",
   },
   {
     icon: Zap,
     title: "Parallel Execution",
-    description: "Provision multiple hosts concurrently with a bounded worker pool.",
+    description: "Automate multiple hosts concurrently with a bounded worker pool.",
   },
 ]
 
@@ -89,12 +87,12 @@ export default function HomePage() {
       <section className="px-4 pt-20 pb-16 md:px-8 md:pt-28 md:pb-24">
         <div className="mx-auto max-w-250 text-center">
           <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
-            Server Provisioning
+            Server Automation
             <br />
             in <span className="text-brand">TypeScript</span>
           </h1>
           <p className="mt-5 text-lg text-fd-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Write provisioning recipes as functions and push them over SSH.
+            Write server automation recipes as functions and push them over SSH.
           </p>
 
           <div className="mt-8 flex justify-center">
@@ -145,7 +143,7 @@ export default function HomePage() {
                 TypeScript Recipes
               </h2>
               <p className="text-fd-muted-foreground leading-relaxed text-base md:text-lg">
-                Write provisioning logic in real TypeScript. No YAML, no DSL. Get full IDE
+                Write server automation logic in real TypeScript. No YAML, no DSL. Get full IDE
                 autocomplete, type checking, conditionals, loops, and async/await. Import any npm
                 package. Or use AI to write the recipe for you.
               </p>
@@ -208,8 +206,8 @@ export default function HomePage() {
                 Real-Time Dashboard
               </h2>
               <p className="text-fd-muted-foreground leading-relaxed text-base md:text-lg">
-                Monitor provisioning runs in a local, live web UI. Watch resources check and apply
-                in real time, expand output per host, and catch failures during runs.
+                Monitor automation runs in a local, live web UI. Watch resources check and apply in
+                real time, expand output per host, and catch failures during runs.
               </p>
             </div>
             <div className="relative overflow-hidden">
@@ -222,7 +220,7 @@ export default function HomePage() {
                 <div className="overflow-hidden border border-(--frame-border)">
                   {/* <Image
                     src="/media/dashboard-run.gif"
-                    alt="Ignition dashboard showing a live provisioning run"
+                    alt="Ignition dashboard showing a live automation run"
                     width={1280}
                     height={720}
                     className="w-full h-auto"
@@ -237,6 +235,7 @@ export default function HomePage() {
                     height={720}
                     className="w-full h-auto"
                     src="/media/dashboard-run.mp4"
+                    aria-label="Ignition dashboard showing a live automation run"
                   />
                 </div>
               </div>

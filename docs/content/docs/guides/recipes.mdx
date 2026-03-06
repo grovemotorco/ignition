@@ -23,7 +23,7 @@ The `createResources(ctx)` factory returns all five built-in resources bound to 
 
 ## Resource ordering
 
-Resources execute sequentially in the order you write them. This is by design — provisioning steps often depend on previous ones (install a package before configuring it, write a config file before restarting the service).
+Resources execute sequentially in the order you write them. This is by design — automation steps often depend on previous ones (install a package before configuring it, write a config file before restarting the service).
 
 ```typescript
 await apt({ name: "nginx", state: "present" }) // 1. install

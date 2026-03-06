@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s | Ignition",
   },
   description:
-    "Server provisioning in TypeScript. Write recipes as functions and push them over SSH.",
+    "Server automation in TypeScript. Write recipes as functions and push them over SSH.",
   openGraph: {
     type: "website",
     siteName: "Ignition",

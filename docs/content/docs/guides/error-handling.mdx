@@ -11,7 +11,7 @@ Ignition has three error modes, controlled via `--error-mode`:
 | ------------- | ---------------------------------------------- | --------------------------------------------- |
 | `fail-fast`   | Stop immediately on first failure              | Default. CI pipelines, critical deploys.      |
 | `fail-at-end` | Run everything, report all failures at the end | Auditing, understanding full scope of issues. |
-| `ignore`      | Log failures and keep going                    | Best-effort provisioning, non-critical tasks. |
+| `ignore`      | Log failures and keep going                    | Best-effort automation, non-critical tasks.   |
 
 ```bash
 ignition run deploy.ts @web --error-mode fail-fast      # stop on first error (default)
