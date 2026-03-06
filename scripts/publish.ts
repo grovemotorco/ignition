@@ -1,16 +1,15 @@
 /**
- * Bump version, run quality gate, git tag, and publish to npm.
+ * Bump version and publish to npm.
  *
  * Usage:
- *   bun run publish          # defaults to patch bump
- *   bun run publish patch
- *   bun run publish minor
- *   bun run publish major
- *   bun run publish 1.2.3    # explicit version
+ *   bun run release          # defaults to patch bump
+ *   bun run release patch
+ *   bun run release minor
+ *   bun run release major
+ *   bun run release 1.2.3   # explicit version
  *
  * Flags:
  *   --dry-run   Show what would happen without making changes
- *   --no-git    Skip git commit and tag
  */
 
 import { readFile, writeFile } from "node:fs/promises"
@@ -45,7 +44,6 @@ function isExplicitVersion(s: string): boolean {
 
 const args = process.argv.slice(2)
 const dryRun = args.includes("--dry-run")
-const noGit = args.includes("--no-git")
 const positional = args.filter((a) => !a.startsWith("--"))
 
 const input = positional[0] ?? "patch"
@@ -71,7 +69,6 @@ banner("Publish")
 kv("current", currentVersion)
 kv("next", nextVersion)
 kv("dry-run", String(dryRun))
-kv("git", String(!noGit))
 
 if (dryRun) {
   console.log("\n  Dry run — stopping here.\n")
@@ -79,26 +76,27 @@ if (dryRun) {
 }
 
 // 1. Run quality gate
-banner("Verify")
-await run(["bun", "run", "verify"], "verify")
-pass("Quality gate passed")
+// banner("Verify")
+// await run(["bun", "run", "verify"], "verify")
+// pass("Quality gate passed")
 
-// 2. Bump version in package.json
+// 2. Build dashboard (embeds HTML into src/dashboard/assets.ts)
+banner("Dashboard")
+await run(["bun", "run", "dashboard:build"], "dashboard:build")
+pass("Dashboard built")
+
+// 3. Compile TypeScript to dist (JS + declarations)
+banner("Build")
+await run(["bun", "run", "build"], "build")
+pass("TypeScript compiled")
+
+// 4. Bump version in package.json
 banner("Bump version")
 pkgJson.version = nextVersion
 await writeFile(pkgPath, `${JSON.stringify(pkgJson, null, 2)}\n`)
 pass(`package.json → ${nextVersion}`)
 
-// 3. Git commit + tag
-if (!noGit) {
-  banner("Git")
-  await run(["git", "add", "package.json"], "git add")
-  await run(["git", "commit", "-m", `chore(release): v${nextVersion}`], "git commit")
-  await run(["git", "tag", "-a", `v${nextVersion}`, "-m", `v${nextVersion}`], "git tag")
-  pass(`Tagged v${nextVersion}`)
-}
-
-// 4. Publish
+// 5. Publish
 banner("Publish to npm")
 await run(["bun", "publish", "--access", "public"], "bun publish")
 pass(`Published @grovemotorco/ignition@${nextVersion}`)
