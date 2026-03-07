@@ -15,10 +15,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Ignition",
+    url: "https://ignition.sh",
+    images: [{ url: "https://ignition.sh/og.png", width: 1200, height: 630, type: "image/png" }],
   },
   twitter: {
     card: "summary_large_image",
+    images: ["https://ignition.sh/og.png"],
   },
+  metadataBase: new URL("https://ignition.sh"),
 }
 
 /** Root app layout for the documentation site. */
