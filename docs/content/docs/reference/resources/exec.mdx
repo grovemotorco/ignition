@@ -3,19 +3,21 @@ title: exec
 description: Run arbitrary commands on remote hosts.
 ---
 
-The `exec` resource runs commands on the remote host via SSH. It is imperative by default, with optional guard conditions (`unless` / `onlyIf`) for conditional execution.
+The `exec` resource runs commands on the remote host via SSH. It is imperative by default, with apply-time preconditions (`unless` / `onlyIf`) for conditional execution and explicitly unsafe check-time escape hatches when you need them.
 
 ## Input
 
-| Field     | Type                     | Default | Required | Description                                      |
-| --------- | ------------------------ | ------- | -------- | ------------------------------------------------ |
-| `command` | `string`                 | —       | Yes      | The command to run                               |
-| `sudo`    | `boolean`                | `false` | No       | Run with `sudo sh -c`                            |
-| `cwd`     | `string`                 | —       | No       | Working directory                                |
-| `env`     | `Record<string, string>` | —       | No       | Environment variables                            |
-| `check`   | `boolean`                | `true`  | No       | If `false`, non-zero exit codes are not failures |
-| `unless`  | `string`                 | —       | No       | Skip apply when this guard command exits 0       |
-| `onlyIf`  | `string`                 | —       | No       | Run apply only when this guard command exits 0   |
+| Field               | Type                     | Default | Required | Description                                                           |
+| ------------------- | ------------------------ | ------- | -------- | --------------------------------------------------------------------- |
+| `command`           | `string`                 | —       | Yes      | The command to run                                                    |
+| `sudo`              | `boolean`                | `false` | No       | Run with `sudo sh -c`                                                 |
+| `cwd`               | `string`                 | —       | No       | Working directory                                                     |
+| `env`               | `Record<string, string>` | —       | No       | Environment variables                                                 |
+| `check`             | `boolean`                | `true`  | No       | If `false`, non-zero exit codes are not failures                      |
+| `unless`            | `string`                 | —       | No       | Skip apply when this precondition exits 0; evaluated in `apply()`     |
+| `onlyIf`            | `string`                 | —       | No       | Run apply only when this precondition exits 0; evaluated in `apply()` |
+| `unsafeCheckUnless` | `string`                 | —       | No       | Unsafe: skip apply when this command exits 0 during `check()`         |
+| `unsafeCheckOnlyIf` | `string`                 | —       | No       | Unsafe: run apply only when this command exits 0 during `check()`     |
 
 ## Output
 
@@ -29,25 +31,31 @@ The `exec` resource runs commands on the remote host via SSH. It is imperative b
 
 ### Check phase
 
-Without guards, `check()` returns `inDesiredState: false` (imperative behavior).
+`check()` is read-only by default. It does not execute `command`, `unless`, or `onlyIf`.
 
-With guards:
+By default:
 
-- `unless`: if guard exits `0`, resource is treated as already in desired state (apply is skipped)
-- `onlyIf`: if guard exits non-zero, precondition is not met and apply is skipped
-- `unless` and `onlyIf` are mutually exclusive
-- Guard commands are executed during `check()` itself, including `ignition run --check`, so only
-  use read-only guards if you need dry-run safety
+- unguarded `exec` returns `inDesiredState: false`
+- `unless` / `onlyIf` also return `inDesiredState: false`
+- `ignition run --check` therefore reports "would change" conservatively for those cases
+
+Unsafe opt-ins:
+
+- `unsafeCheckUnless`: if the command exits `0`, the resource is treated as already satisfied
+- `unsafeCheckOnlyIf`: if the command exits non-zero, apply is skipped
+- `unsafeCheckUnless` and `unsafeCheckOnlyIf` execute during `check()`, including `ignition run --check`
+- only one of `unless`, `onlyIf`, `unsafeCheckUnless`, and `unsafeCheckOnlyIf` may be set
 
 ### Apply phase
 
-1. Builds the command string:
+1. Evaluates `unless` / `onlyIf` first, if present.
+2. Builds the command string:
    - Prepends environment variables as `KEY=VALUE` pairs
    - Wraps with `cd <cwd> &&` if `cwd` is specified
    - Wraps with `sudo sh -c '...'` if `sudo` is true
-2. Executes the command via SSH.
-3. If the command exits with non-zero and `check` is `true`, throws `SSHCommandError`.
-4. If `check` is `false`, the exit code is captured but not treated as a failure.
+3. Executes the command via SSH.
+4. If the command exits with non-zero and `check` is `true`, throws `SSHCommandError`.
+5. If `check` is `false`, the exit code is captured but not treated as a failure.
 
 ## Annotations
 
@@ -107,6 +115,16 @@ await exec({
 })
 ```
 
+### Unsafe check-time probe
+
+```typescript
+await exec({
+  command: "npm install -g pm2",
+  unsafeCheckUnless: "command -v pm2",
+  sudo: true,
+})
+```
+
 ### Capturing output
 
 ```typescript
@@ -118,9 +136,10 @@ const hostname = result.output?.stdout.trim()
 
 - Unguarded `exec` always reports `changed` because it can't determine whether the command mutated state.
 - In check mode (`ignition run --check`), unguarded exec reports as "would change" since it's imperative.
-- `unless` can report `ok` when the guard shows the desired state is already met.
+- `unless` and `onlyIf` are apply-time preconditions, so check mode still reports them as "would change".
+- `unless` can report `ok` during apply when the precondition shows the desired state is already met.
 - `onlyIf` can also report `ok`, but that means the precondition failed and apply was skipped.
-- `unless` and `onlyIf` guards run during `check()` and in `ignition run --check`.
+- `unsafeCheckUnless` and `unsafeCheckOnlyIf` are the only ways to run user commands during `check()`; use them only when you intentionally accept dry-run side effects.
 - Set `check: false` for commands where a non-zero exit code is acceptable (e.g., `grep` returning 1 for no match).
 - `sudo` wraps the entire command with `sudo sh -c '...'` — shell features like pipes and redirects work inside.
 - Command output (stdout/stderr) can be streamed in real time when trace mode is enabled.

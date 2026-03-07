@@ -11,6 +11,8 @@
  * - check() is called first (read-only, side-effect free).
  * - If inDesiredState === true, apply() is skipped → status "ok".
  * - If inDesiredState === false and mode is "apply", apply() is called → status "changed".
+ * - Resources that cannot safely prove desired state during check() should
+ *   conservatively return inDesiredState === false and decide in apply().
  * - A convergent resource: after apply(), a subsequent check() returns inDesiredState: true.
  */
 
@@ -30,6 +32,27 @@ import { DEFAULT_RESOURCE_POLICY } from "./types.ts"
 import { CapabilityError, isRetryable, ResourceError } from "./errors.ts"
 import { buildCacheKey } from "./cache.ts"
 import { stableStringify } from "./serialize.ts"
+
+class ApplySkipped<TOutput> extends Error {
+  output?: TOutput | undefined
+
+  constructor(output?: TOutput) {
+    super("Apply skipped")
+    this.name = "ApplySkipped"
+    this.output = output
+  }
+}
+
+/**
+ * Short-circuit apply() after a conservative check().
+ *
+ * Resources use this when `check()` must remain read-only but the final apply
+ * decision depends on an apply-time precondition. The executor reports the
+ * resource as `ok` and does not run post-check.
+ */
+export function skipApply<TOutput>(output?: TOutput): never {
+  throw new ApplySkipped(output)
+}
 
 /**
  * Assert that the transport on `ctx` supports the given capability.
@@ -395,42 +418,14 @@ export async function executeResource<TInput, TOutput>(
       }
 
       // --- Apply phase with retry ---
-      const output = await executePhaseWithRetry(
-        "apply",
-        () =>
-          withTimeout(
-            (signal) => def.apply(withPhaseSignal(resourceCtx, signal), input),
-            effectivePolicy.timeoutMs,
-            ctx.signal,
-          ),
-        effectivePolicy,
-        attempts,
-        (attempt, phase, error, durationMs) => {
-          if (eventBus && hostId && resourceId) {
-            eventBus.resourceRetry(
-              hostId,
-              resourceId,
-              attempt,
-              def.type,
-              name,
-              phase,
-              error,
-              durationMs,
-            )
-          }
-        },
-      )
-
-      // --- Post-check phase ---
-      // When postCheck is enabled, run check() again after apply() to
-      // verify convergence. If post-check shows still not in desired
-      // state, this is a convergence failure → status 'failed'.
-      if (effectivePolicy.postCheck) {
-        const postCheckResult = await executePhaseWithRetry(
-          "post-check",
+      let output: TOutput | undefined
+      let applySkippedResult: ResourceResult<TOutput> | undefined
+      try {
+        output = await executePhaseWithRetry(
+          "apply",
           () =>
             withTimeout(
-              (signal) => def.check(withPhaseSignal(resourceCtx, signal), input),
+              (signal) => def.apply(withPhaseSignal(resourceCtx, signal), input),
               effectivePolicy.timeoutMs,
               ctx.signal,
             ),
@@ -451,33 +446,83 @@ export async function executeResource<TInput, TOutput>(
             }
           },
         )
-
-        if (!postCheckResult.inDesiredState) {
-          throw new ResourceError(
-            def.type,
+      } catch (error) {
+        if (error instanceof ApplySkipped) {
+          applySkippedResult = {
+            type: def.type,
             name,
-            `Convergence failure: post-check after apply() shows resource is still not in desired state`,
-          )
+            status: "ok",
+            current: checkResult.current,
+            desired: checkResult.desired,
+            output: error.output,
+            durationMs: performance.now() - start,
+          }
+        } else {
+          throw error
         }
+      }
 
-        result = {
-          type: def.type,
-          name,
-          status: "changed",
-          current: checkResult.current,
-          desired: checkResult.desired,
-          output,
-          durationMs: performance.now() - start,
-        }
+      if (applySkippedResult) {
+        result = applySkippedResult
       } else {
-        result = {
-          type: def.type,
-          name,
-          status: "changed",
-          current: checkResult.current,
-          desired: checkResult.desired,
-          output,
-          durationMs: performance.now() - start,
+        // --- Post-check phase ---
+        // When postCheck is enabled, run check() again after apply() to
+        // verify convergence. If post-check shows still not in desired
+        // state, this is a convergence failure → status 'failed'.
+        if (effectivePolicy.postCheck) {
+          const postCheckResult = await executePhaseWithRetry(
+            "post-check",
+            () =>
+              withTimeout(
+                (signal) => def.check(withPhaseSignal(resourceCtx, signal), input),
+                effectivePolicy.timeoutMs,
+                ctx.signal,
+              ),
+            effectivePolicy,
+            attempts,
+            (attempt, phase, error, durationMs) => {
+              if (eventBus && hostId && resourceId) {
+                eventBus.resourceRetry(
+                  hostId,
+                  resourceId,
+                  attempt,
+                  def.type,
+                  name,
+                  phase,
+                  error,
+                  durationMs,
+                )
+              }
+            },
+          )
+
+          if (!postCheckResult.inDesiredState) {
+            throw new ResourceError(
+              def.type,
+              name,
+              `Convergence failure: post-check after apply() shows resource is still not in desired state`,
+            )
+          }
+
+          result = {
+            type: def.type,
+            name,
+            status: "changed",
+            current: checkResult.current,
+            desired: checkResult.desired,
+            output,
+            durationMs: performance.now() - start,
+          }
+        } else {
+          result = {
+            type: def.type,
+            name,
+            status: "changed",
+            current: checkResult.current,
+            desired: checkResult.desired,
+            output,
+            durationMs: performance.now() - start,
+          }
         }
       }
     }
