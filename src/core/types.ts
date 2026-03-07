@@ -21,6 +21,8 @@ export type ErrorMode = "fail-fast" | "fail-at-end" | "ignore"
 /**
  * Result of a resource's `check()` phase.
  *
+ * `check()` must be safe to run during `ignition run --check`.
+ *
  * `inDesiredState` determines whether `apply()` will be called.
  * `current` and `desired` are used for diff output.
  *
@@ -56,8 +58,8 @@ export type CheckResult<TOutput> = {
  *
  * Resources that are inherently imperative (e.g. `exec`, `service.restarted`)
  * may always return `inDesiredState: false` from `check()`. This is valid —
- * the contract permits "always-run" semantics where convergence is managed
- * by the recipe author rather than the resource itself.
+ * the contract permits conservative "always-run" semantics when a resource
+ * cannot prove safety or desired state from read-only checks alone.
  */
 export type ResourceDefinition<TInput, TOutput> = {
   /** Resource type identifier (e.g. "apt", "file", "exec"). Must be unique and lowercase. */

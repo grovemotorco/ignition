@@ -2,8 +2,8 @@
  * exec() resource — run arbitrary commands on target hosts.
  *
  * This is the foundational resource that other resources build upon.
- * `check()` always returns not-in-desired-state (exec always runs).
- * `apply()` executes the command via SSH.
+ * `check()` is read-only by default and does not execute user commands.
+ * `apply()` executes the command via SSH and may evaluate apply-time preconditions.
  */
 
 import type {
@@ -14,7 +14,7 @@ import type {
   ResourceSchema,
 } from "../core/types.ts"
 import { ResourceError, SSHCommandError } from "../core/errors.ts"
-import { executeResource, requireCapability } from "../core/resource.ts"
+import { executeResource, requireCapability, skipApply } from "../core/resource.ts"
 
 /** Input options for the exec resource. */
 export type ExecInput = {
@@ -28,10 +28,14 @@ export type ExecInput = {
   env?: Record<string, string> | undefined
   /** If false, non-zero exit codes are not treated as failures. Default: true. */
   check?: boolean | undefined
-  /** Skip apply if this command exits 0 (desired state already met). */
+  /** Skip apply if this precondition command exits 0. Evaluated during apply(), not check(). */
   unless?: string | undefined
-  /** Only apply if this command exits 0 (precondition met). */
+  /** Only apply if this precondition command exits 0. Evaluated during apply(), not check(). */
   onlyIf?: string | undefined
+  /** Unsafe escape hatch: skip apply if this command exits 0 during check(), including --check. */
+  unsafeCheckUnless?: string | undefined
+  /** Unsafe escape hatch: only apply if this command exits 0 during check(), including --check. */
+  unsafeCheckOnlyIf?: string | undefined
 }
 
 /** Output of a successful exec resource. */
@@ -39,6 +43,13 @@ export type ExecOutput = {
   exitCode: number
   stdout: string
   stderr: string
+}
+
+type ExecGuardKind = "unless" | "onlyIf" | "unsafeCheckUnless" | "unsafeCheckOnlyIf"
+
+type ExecGuard = {
+  kind: ExecGuardKind
+  command: string
 }
 
 /** Build the full command string from input options. */
@@ -68,6 +79,64 @@ function shellQuote(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`
 }
 
+function configuredGuards(input: ExecInput): ExecGuard[] {
+  const guards: ExecGuard[] = []
+  if (input.unless) guards.push({ kind: "unless", command: input.unless })
+  if (input.onlyIf) guards.push({ kind: "onlyIf", command: input.onlyIf })
+  if (input.unsafeCheckUnless) {
+    guards.push({ kind: "unsafeCheckUnless", command: input.unsafeCheckUnless })
+  }
+  if (input.unsafeCheckOnlyIf) {
+    guards.push({ kind: "unsafeCheckOnlyIf", command: input.unsafeCheckOnlyIf })
+  }
+  return guards
+}
+
+function assertValidGuards(input: ExecInput): void {
+  const guards = configuredGuards(input)
+  if (guards.length > 1) {
+    throw new ResourceError(
+      "exec",
+      input.command,
+      "only one of unless, onlyIf, unsafeCheckUnless, and unsafeCheckOnlyIf may be provided",
+    )
+  }
+}
+
+function getApplyGuard(input: ExecInput): ExecGuard | undefined {
+  if (input.unless) return { kind: "unless", command: input.unless }
+  if (input.onlyIf) return { kind: "onlyIf", command: input.onlyIf }
+  return undefined
+}
+
+function getUnsafeCheckGuard(input: ExecInput): ExecGuard | undefined {
+  if (input.unsafeCheckUnless) {
+    return { kind: "unsafeCheckUnless", command: input.unsafeCheckUnless }
+  }
+  if (input.unsafeCheckOnlyIf) {
+    return { kind: "unsafeCheckOnlyIf", command: input.unsafeCheckOnlyIf }
+  }
+  return undefined
+}
+
+function buildGuardCommand(input: ExecInput, guard: ExecGuard): string {
+  return buildCommand({
+    command: guard.command,
+    sudo: input.sudo,
+    cwd: input.cwd,
+    env: input.env,
+  })
+}
+
+function desiredState(input: ExecInput): Record<string, unknown> {
+  const desired: Record<string, unknown> = { command: input.command }
+  if (input.unless) desired.unless = input.unless
+  if (input.onlyIf) desired.onlyIf = input.onlyIf
+  if (input.unsafeCheckUnless) desired.unsafeCheckUnless = input.unsafeCheckUnless
+  if (input.unsafeCheckOnlyIf) desired.unsafeCheckOnlyIf = input.unsafeCheckOnlyIf
+  return desired
+}
+
 /** Schema for the exec resource. */
 export const execSchema: ResourceSchema = {
   description: "Run an arbitrary command on the remote host via SSH.",
@@ -91,11 +160,13 @@ export const execSchema: ResourceSchema = {
     "execute on server",
   ],
   hints: [
-    "Without unless/onlyIf, exec is imperative — it always runs and reports changed",
-    "Use unless to skip when desired state is met (e.g. unless: 'command -v pm2' skips if pm2 exists)",
-    "Use onlyIf to run only when a precondition is met (e.g. onlyIf: 'test -f /tmp/trigger')",
-    "unless and onlyIf are mutually exclusive — providing both throws an error",
-    "Guards inherit sudo, cwd, and env from the parent input and run during check (read-only)",
+    "Without preconditions, exec is imperative — it always runs and reports changed",
+    "Use unless to skip during apply when the command's desired state is already met",
+    "Use onlyIf to gate apply on an apply-time precondition",
+    "unless and onlyIf do not run during check(), so ignition run --check reports them conservatively as would change",
+    "unsafeCheckUnless and unsafeCheckOnlyIf are explicit escape hatches that execute during check(), including ignition run --check",
+    "Only one of unless, onlyIf, unsafeCheckUnless, and unsafeCheckOnlyIf may be provided",
+    "Preconditions and unsafe check guards inherit sudo, cwd, and env from the parent input",
     "check defaults to true — non-zero exit codes are treated as failures unless check: false",
     "sudo wraps the entire command with sudo sh -c, including cwd and env",
     "env vars are prepended as KEY=VALUE before the command",
@@ -121,11 +192,19 @@ export const execSchema: ResourceSchema = {
       },
       unless: {
         type: "string",
-        description: "Skip apply if this command exits 0 (desired state already met)",
+        description: "Skip apply if this precondition command exits 0 (evaluated during apply)",
       },
       onlyIf: {
         type: "string",
-        description: "Only apply if this command exits 0 (precondition met)",
+        description: "Only apply if this precondition command exits 0 (evaluated during apply)",
+      },
+      unsafeCheckUnless: {
+        type: "string",
+        description: "Unsafe: skip apply if this command exits 0 during check(), including --check",
+      },
+      unsafeCheckOnlyIf: {
+        type: "string",
+        description: "Unsafe: only apply if this command exits 0 during check(), including --check",
       },
     },
   },
@@ -157,15 +236,21 @@ export const execSchema: ResourceSchema = {
     },
     {
       title: "Install pm2 only if not already installed",
-      description: "Use unless to skip when the desired state is already met",
+      description: "Use an apply-time precondition to skip when the desired state is already met",
       input: { command: "npm install -g pm2", unless: "command -v pm2", sudo: true },
       naturalLanguage: "Install pm2 globally if it isn't already installed",
     },
     {
       title: "Run migration only if trigger file exists",
-      description: "Use onlyIf to run only when a precondition is met",
+      description: "Use an apply-time precondition to run only when a precondition is met",
       input: { command: "node migrate.js", onlyIf: "test -f /tmp/run-migration", cwd: "/opt/app" },
       naturalLanguage: "Run the migration script only if the trigger file exists",
+    },
+    {
+      title: "Unsafe check-time probe",
+      description:
+        "Opt into running a probe during check mode when you accept dry-run side effects",
+      input: { command: "npm install -g pm2", unsafeCheckUnless: "command -v pm2", sudo: true },
     },
   ],
   nature: "imperative",
@@ -187,58 +272,70 @@ export const execDefinition: ResourceDefinition<ExecInput, ExecOutput> = {
   },
 
   async check(ctx: ExecutionContext, input: ExecInput): Promise<CheckResult<ExecOutput>> {
-    if (input.unless && input.onlyIf) {
-      throw new ResourceError("exec", input.command, "unless and onlyIf are mutually exclusive")
-    }
+    assertValidGuards(input)
 
-    // No guard — exec always runs (unchanged behavior)
-    if (!input.unless && !input.onlyIf) {
+    const unsafeCheckGuard = getUnsafeCheckGuard(input)
+    if (!unsafeCheckGuard) {
+      const current: Record<string, unknown> = { executed: false }
+      if (getApplyGuard(input)) {
+        current.preconditionEvaluated = false
+      }
+
       return {
         inDesiredState: false,
-        current: { executed: false },
-        desired: { command: input.command },
+        current,
+        desired: desiredState(input),
       }
     }
 
-    const guardCmd = buildCommand({
-      command: (input.unless ?? input.onlyIf)!,
-      sudo: input.sudo,
-      cwd: input.cwd,
-      env: input.env,
-    })
+    requireCapability(ctx, "exec", "exec")
+    const guardCmd = buildGuardCommand(input, unsafeCheckGuard)
     const result = await ctx.connection.exec(guardCmd)
 
-    if (input.unless) {
-      // unless exits 0 → desired state met, skip apply
+    if (unsafeCheckGuard.kind === "unsafeCheckUnless") {
       return result.exitCode === 0
         ? {
             inDesiredState: true,
-            current: { guardPassed: true },
-            desired: { command: input.command },
+            current: { unsafeCheckGuardPassed: true },
+            desired: desiredState(input),
+            output: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr },
           }
         : {
             inDesiredState: false,
-            current: { guardPassed: false },
-            desired: { command: input.command },
+            current: { unsafeCheckGuardPassed: false },
+            desired: desiredState(input),
           }
     }
 
-    // onlyIf exits non-zero → precondition not met, skip apply
     return result.exitCode !== 0
       ? {
           inDesiredState: true,
-          current: { preconditionNotMet: true },
-          desired: { command: input.command },
+          current: { unsafeCheckPreconditionMet: false },
+          desired: desiredState(input),
+          output: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr },
         }
       : {
           inDesiredState: false,
-          current: { preconditionMet: true },
-          desired: { command: input.command },
+          current: { unsafeCheckPreconditionMet: true },
+          desired: desiredState(input),
         }
   },
 
   async apply(ctx: ExecutionContext, input: ExecInput): Promise<ExecOutput> {
+    assertValidGuards(input)
     requireCapability(ctx, "exec", "exec")
+
+    const applyGuard = getApplyGuard(input)
+    if (applyGuard) {
+      const guardResult = await ctx.connection.exec(buildGuardCommand(input, applyGuard))
+      if (applyGuard.kind === "unless" && guardResult.exitCode === 0) {
+        skipApply()
+      }
+      if (applyGuard.kind === "onlyIf" && guardResult.exitCode !== 0) {
+        skipApply()
+      }
+    }
+
     const cmd = buildCommand(input)
     const result = await ctx.connection.exec(cmd)
 
