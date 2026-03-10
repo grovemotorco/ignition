@@ -23,6 +23,11 @@
 - `bun run dashboard:build` builds the dashboard UI bundle.
 - `bun run docs:dev` / `bun run docs:build` run and build docs.
 
+## Agent & Workspace Setup (`@grovemotorco` internal only)
+
+- `bun run setup:agents` installs agent skills via `dotagents` (reads `agents.toml`).
+- `bun run setup:docs` fetches workspace docs into `.docs/`. Only needed when working outside the workspace otherwise docs are symlinked.
+
 ## Coding Style & Naming Conventions
 
 - Language: TypeScript (ESM) with Bun workspace tooling.
