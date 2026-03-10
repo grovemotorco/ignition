@@ -1,0 +1,69 @@
+version = 1
+agents = ["claude", "cursor", "codex"]
+
+[trust]
+allow_all = true
+
+[[skills]]
+name = "dotagents"
+source = "getsentry/dotagents"
+
+[[skills]]
+name = "skill-writer"
+source = "getsentry/skills"
+
+[[skills]]
+name = "vercel-react-best-practices"
+source = "vercel-labs/agent-skills"
+
+[[skills]]
+name = "web-design-guidelines"
+source = "vercel-labs/agent-skills"
+
+[[skills]]
+name = "issue"
+source = "grovemotorco/skills"
+
+[[skills]]
+name = "agents-md"
+source = "grovemotorco/skills"
+
+[[skills]]
+name = "adr"
+source = "grovemotorco/skills"
+
+[[skills]]
+name = "plan-feature"
+source = "grovemotorco/skills"
+
+[[skills]]
+name = "implement-issue"
+source = "grovemotorco/skills"
+
+[[skills]]
+name = "review-staged"
+source = "grovemotorco/skills"
+
+[[skills]]
+name = "code-simplifier"
+source = "grovemotorco/skills"
+
+[[skills]]
+name = "agent-browser"
+source = "vercel-labs/agent-browser"
+
+[[skills]]
+name = "electron"
+source = "vercel-labs/agent-browser"
+
+[[skills]]
+name = "dogfood"
+source = "vercel-labs/agent-browser"
+
+[[skills]]
+name = "shadcn"
+source = "shadcn/ui"
+
+[[skills]]
+name = "portless"
+source = "vercel-labs/portless"

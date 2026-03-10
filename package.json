@@ -47,7 +47,9 @@
     "docs:build": "bun run --cwd docs build",
     "theme:generate": "bun run scripts/extract-palette.ts",
     "theme:preview": "bun run scripts/extract-palette.ts --preview",
-    "release": "bun run scripts/publish.ts"
+    "release": "bun run scripts/publish.ts",
+    "setup:agents": "dotagents install",
+    "setup:docs": "bun scripts/fetch-workspace-docs.ts"
   },
   "dependencies": {
     "incur": "0.2.2",
@@ -67,6 +69,7 @@
     "playwright": "^1.58.2",
     "typescript": "5.9.3",
     "vite": "^8.0.0-beta.15",
-    "vite-plugin-singlefile": "^2.3.0"
+    "vite-plugin-singlefile": "^2.3.0",
+    "@sentry/dotagents": "^1.2.0"
   }
 }
