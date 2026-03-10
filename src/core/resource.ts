@@ -11,12 +11,15 @@
  * - check() is called first (read-only, side-effect free).
  * - If inDesiredState === true, apply() is skipped → status "ok".
  * - If inDesiredState === false and mode is "apply", apply() is called → status "changed".
+ * - Resources that cannot safely prove desired state during check() should
+ *   conservatively return inDesiredState === false and decide in apply().
  * - A convergent resource: after apply(), a subsequent check() returns inDesiredState: true.
  */
 
 import type {
   AttemptRecord,
   CheckResult,
+  ExecutionPhase,
   ExecOptions,
   ExecutionContext,
   ResourceCallMeta,
@@ -30,6 +33,27 @@ import { DEFAULT_RESOURCE_POLICY } from "./types.ts"
 import { CapabilityError, isRetryable, ResourceError } from "./errors.ts"
 import { buildCacheKey } from "./cache.ts"
 import { stableStringify } from "./serialize.ts"
+
+class ApplySkipped<TOutput> extends Error {
+  output?: TOutput | undefined
+
+  constructor(output?: TOutput) {
+    super("Apply skipped")
+    this.name = "ApplySkipped"
+    this.output = output
+  }
+}
+
+/**
+ * Short-circuit apply() after a conservative check().
+ *
+ * Resources use this when `check()` must remain read-only but the final apply
+ * decision depends on an apply-time precondition. The executor reports the
+ * resource as `ok` and does not run post-check.
+ */
+export function skipApply<TOutput>(output?: TOutput): never {
+  throw new ApplySkipped(output)
+}
 
 /**
  * Assert that the transport on `ctx` supports the given capability.
@@ -192,19 +216,36 @@ function withSignal(ctx: ExecutionContext, signal: AbortSignal): ExecutionContex
   }) as ExecutionContext
 }
 
+/** Clone an execution context with the current lifecycle phase. */
+function withPhase(ctx: ExecutionContext, phase: ExecutionPhase): ExecutionContext {
+  return Object.assign(Object.create(Object.getPrototypeOf(ctx) ?? Object.prototype), ctx, {
+    phase,
+  }) as ExecutionContext
+}
+
 /**
- * Clone an execution context with a derived signal and a transport wrapper
- * that injects the same signal into exec/transfer/fetch calls by default.
+ * Clone an execution context with a lifecycle phase, derived signal, and a
+ * transport wrapper that injects the same signal into exec/transfer/fetch
+ * calls by default.
  *
  * This ensures built-in resources that call `ctx.connection.exec(...)` (without
  * explicitly passing `{ signal: ctx.signal }`) still propagate cancellation to
  * the transport layer.
  */
-function withPhaseSignal(ctx: ExecutionContext, signal: AbortSignal): ExecutionContext {
-  const signaled = withSignal(ctx, signal)
+function withPhaseSignal(
+  ctx: ExecutionContext,
+  phase: ExecutionPhase,
+  signal: AbortSignal,
+): ExecutionContext {
+  const phased = withPhase(ctx, phase)
+  const signaled = withSignal(phased, signal)
   const wrapped = wrapTransport(signaled.connection, { signal }, signal)
   return withConnection(signaled, wrapped)
 }
+
+type ApplyPhaseResult<TOutput> =
+  | { skipped: false; output: TOutput }
+  | { skipped: true; output?: TOutput | undefined }
 
 /**
  * Execute a single resource through the check-then-apply lifecycle.
@@ -347,7 +388,7 @@ export async function executeResource<TInput, TOutput>(
       "check",
       () =>
         withTimeout(
-          (signal) => def.check(withPhaseSignal(resourceCtx, signal), input),
+          (signal) => def.check(withPhaseSignal(resourceCtx, "check", signal), input),
           effectivePolicy.timeoutMs,
           ctx.signal,
         ),
@@ -395,11 +436,10 @@ export async function executeResource<TInput, TOutput>(
       }
 
       // --- Apply phase with retry ---
-      const output = await executePhaseWithRetry(
-        "apply",
+      const applyResult = await executeApplyPhaseWithRetry(
         () =>
           withTimeout(
-            (signal) => def.apply(withPhaseSignal(resourceCtx, signal), input),
+            (signal) => def.apply(withPhaseSignal(resourceCtx, "apply", signal), input),
             effectivePolicy.timeoutMs,
             ctx.signal,
           ),
@@ -421,63 +461,77 @@ export async function executeResource<TInput, TOutput>(
         },
       )
 
-      // --- Post-check phase ---
-      // When postCheck is enabled, run check() again after apply() to
-      // verify convergence. If post-check shows still not in desired
-      // state, this is a convergence failure → status 'failed'.
-      if (effectivePolicy.postCheck) {
-        const postCheckResult = await executePhaseWithRetry(
-          "post-check",
-          () =>
-            withTimeout(
-              (signal) => def.check(withPhaseSignal(resourceCtx, signal), input),
-              effectivePolicy.timeoutMs,
-              ctx.signal,
-            ),
-          effectivePolicy,
-          attempts,
-          (attempt, phase, error, durationMs) => {
-            if (eventBus && hostId && resourceId) {
-              eventBus.resourceRetry(
-                hostId,
-                resourceId,
-                attempt,
-                def.type,
-                name,
-                phase,
-                error,
-                durationMs,
-              )
-            }
-          },
-        )
-
-        if (!postCheckResult.inDesiredState) {
-          throw new ResourceError(
-            def.type,
-            name,
-            `Convergence failure: post-check after apply() shows resource is still not in desired state`,
-          )
-        }
-
+      if (applyResult.skipped) {
         result = {
           type: def.type,
           name,
-          status: "changed",
+          status: "ok",
           current: checkResult.current,
           desired: checkResult.desired,
-          output,
+          output: applyResult.output,
           durationMs: performance.now() - start,
         }
       } else {
-        result = {
-          type: def.type,
-          name,
-          status: "changed",
-          current: checkResult.current,
-          desired: checkResult.desired,
-          output,
-          durationMs: performance.now() - start,
+        const output = applyResult.output
+
+        // --- Post-check phase ---
+        // When postCheck is enabled, run check() again after apply() to
+        // verify convergence. If post-check shows still not in desired
+        // state, this is a convergence failure → status 'failed'.
+        if (effectivePolicy.postCheck) {
+          const postCheckResult = await executePhaseWithRetry(
+            "post-check",
+            () =>
+              withTimeout(
+                (signal) => def.check(withPhaseSignal(resourceCtx, "post-check", signal), input),
+                effectivePolicy.timeoutMs,
+                ctx.signal,
+              ),
+            effectivePolicy,
+            attempts,
+            (attempt, phase, error, durationMs) => {
+              if (eventBus && hostId && resourceId) {
+                eventBus.resourceRetry(
+                  hostId,
+                  resourceId,
+                  attempt,
+                  def.type,
+                  name,
+                  phase,
+                  error,
+                  durationMs,
+                )
+              }
+            },
+          )
+
+          if (!postCheckResult.inDesiredState) {
+            throw new ResourceError(
+              def.type,
+              name,
+              `Convergence failure: post-check after apply() shows resource is still not in desired state`,
+            )
+          }
+
+          result = {
+            type: def.type,
+            name,
+            status: "changed",
+            current: checkResult.current,
+            desired: checkResult.desired,
+            output,
+            durationMs: performance.now() - start,
+          }
+        } else {
+          result = {
+            type: def.type,
+            name,
+            status: "changed",
+            current: checkResult.current,
+            desired: checkResult.desired,
+            output,
+            durationMs: performance.now() - start,
+          }
         }
       }
     }
@@ -582,4 +636,55 @@ async function executePhaseWithRetry<T>(
 
   // Unreachable — loop always returns or throws
   throw new Error("executePhaseWithRetry: unreachable")
+}
+
+async function executeApplyPhaseWithRetry<T>(
+  fn: () => Promise<T>,
+  policy: ResourcePolicy,
+  attempts: AttemptRecord[],
+  onRetry?: (attempt: number, phase: "apply", error: Error, durationMs: number) => void,
+): Promise<ApplyPhaseResult<T>> {
+  const maxAttempts = policy.retries + 1
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const attemptStart = performance.now()
+    try {
+      const result = await fn()
+      attempts.push({
+        attempt,
+        phase: "apply",
+        durationMs: performance.now() - attemptStart,
+      })
+      return { skipped: false, output: result }
+    } catch (err) {
+      const durationMs = performance.now() - attemptStart
+      if (err instanceof ApplySkipped) {
+        attempts.push({
+          attempt,
+          phase: "apply",
+          durationMs,
+        })
+        return { skipped: true, output: err.output }
+      }
+
+      const error = err instanceof Error ? err : new Error(String(err))
+      attempts.push({
+        attempt,
+        phase: "apply",
+        error,
+        durationMs,
+      })
+
+      if (attempt < maxAttempts && isRetryable(error)) {
+        onRetry?.(attempt, "apply", error, durationMs)
+        const delay = backoffDelay(policy.retryDelayMs, attempt)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        continue
+      }
+
+      throw error
+    }
+  }
+
+  throw new Error("executeApplyPhaseWithRetry: unreachable")
 }

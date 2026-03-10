@@ -18,8 +18,13 @@ export type RunMode = "apply" | "check"
 /** Error handling strategy for a run. */
 export type ErrorMode = "fail-fast" | "fail-at-end" | "ignore"
 
+/** Executor phase within a single resource lifecycle. */
+export type ExecutionPhase = "check" | "apply" | "post-check"
+
 /**
  * Result of a resource's `check()` phase.
+ *
+ * `check()` must be safe to run during `ignition run --check`.
  *
  * `inDesiredState` determines whether `apply()` will be called.
  * `current` and `desired` are used for diff output.
@@ -56,8 +61,8 @@ export type CheckResult<TOutput> = {
  *
  * Resources that are inherently imperative (e.g. `exec`, `service.restarted`)
  * may always return `inDesiredState: false` from `check()`. This is valid —
- * the contract permits "always-run" semantics where convergence is managed
- * by the recipe author rather than the resource itself.
+ * the contract permits conservative "always-run" semantics when a resource
+ * cannot prove safety or desired state from read-only checks alone.
  */
 export type ResourceDefinition<TInput, TOutput> = {
   /** Resource type identifier (e.g. "apt", "file", "exec"). Must be unique and lowercase. */
@@ -335,7 +340,7 @@ export type AttemptRecord = {
   /** 1-based attempt number. */
   attempt: number
   /** Which phase this attempt was for. */
-  phase: "check" | "apply" | "post-check"
+  phase: ExecutionPhase
   /** Error that caused this attempt to fail (absent on success). */
   error?: Error | undefined
   /** Wall-clock duration of this attempt in milliseconds. */
@@ -480,6 +485,8 @@ export type Reporter = {
 export type ExecutionContext = {
   connection: Transport
   mode: RunMode
+  /** Internal lifecycle phase used by the executor. */
+  phase?: ExecutionPhase | undefined
   errorMode: ErrorMode
   verbose: boolean
   host: HostContext

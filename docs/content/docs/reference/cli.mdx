@@ -11,7 +11,7 @@ ignition <command>
 
 ### `run`
 
-Apply a recipe to target hosts. Use `--check` for a dry-run.
+Apply a recipe to target hosts. Use `--check` for a dry-run that only executes read-only `check()` logic for built-in resources.
 
 ```bash
 ignition run <recipe> <targets> [options]
@@ -100,9 +100,9 @@ These also appear in current CLI help because they come from the underlying CLI 
 
 ### Dry-run
 
-| Flag      | Description                      |
-| --------- | -------------------------------- |
-| `--check` | Dry-run without applying changes |
+| Flag      | Description                                                                |
+| --------- | -------------------------------------------------------------------------- |
+| `--check` | Dry-run without applying changes; built-in `check()` logic stays read-only |
 
 ### Connection options
 
