@@ -1,15 +1,16 @@
 ---
 title: Resources Overview
-description: The five built-in resources and how they work.
+description: The six built-in resources and how they work.
 ---
 
 Resources are the building blocks of Ignition recipes. Each resource manages a specific aspect of server state.
 
-## The five resources
+## The six resources
 
 | Resource                                           | Purpose                                      | Nature      |
 | -------------------------------------------------- | -------------------------------------------- | ----------- |
 | [`apt`](/docs/reference/resources/apt)             | Manage system packages                       | Declarative |
+| [`docker`](/docs/reference/resources/docker)       | Manage Docker containers                     | Mixed       |
 | [`file`](/docs/reference/resources/file)           | Manage file contents, permissions, ownership | Declarative |
 | [`directory`](/docs/reference/resources/directory) | Manage directories                           | Declarative |
 | [`exec`](/docs/reference/resources/exec)           | Run arbitrary commands                       | Imperative  |
@@ -36,6 +37,9 @@ await exec({ command: "npm install" })
 
 The `service` resource is mixed — `started` and `stopped` are declarative (they check first), while `restarted` and `reloaded` are imperative (they always execute).
 
+The `docker` resource is also mixed — the lifecycle states are declarative by default, but
+`pull: "always"` intentionally forces apply mode to refresh the image reference on every run.
+
 ## Creating resources
 
 Use `createResources(ctx)` to get bound resource functions:
@@ -45,10 +49,11 @@ import type { ExecutionContext } from "@grovemotorco/ignition"
 import { createResources } from "@grovemotorco/ignition"
 
 export default async function (ctx: ExecutionContext) {
-  const { apt, file, directory, exec, service } = createResources(ctx)
+  const { apt, docker, file, directory, exec, service } = createResources(ctx)
 
   // Each function is bound to the current ExecutionContext
   await apt({ name: "curl", state: "present" })
+  await docker({ name: "cache", image: "redis:7" })
 }
 ```
 
@@ -117,6 +122,7 @@ intentionally want a command to run during `check()` and accept dry-run side eff
 For the full API of each resource, see the individual reference pages:
 
 - [apt](/docs/reference/resources/apt)
+- [docker](/docs/reference/resources/docker)
 - [file](/docs/reference/resources/file)
 - [directory](/docs/reference/resources/directory)
 - [exec](/docs/reference/resources/exec)

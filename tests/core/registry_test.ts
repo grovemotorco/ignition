@@ -147,10 +147,11 @@ test("ResourceRegistry: createBoundResources returns all registered types", () =
 // defaultRegistry — built-in resources
 // ---------------------------------------------------------------------------
 
-test("defaultRegistry has all 5 built-in resources", () => {
+test("defaultRegistry has all 6 built-in resources", () => {
   expect([...defaultRegistry.types()].sort()).toEqual([
     "apt",
     "directory",
+    "docker",
     "exec",
     "file",
     "service",
@@ -180,6 +181,7 @@ test("createResources with custom registry includes extra resources", () => {
   expect(resources.exec).toBeDefined()
   expect(resources.file).toBeDefined()
   expect(resources.apt).toBeDefined()
+  expect(resources.docker).toBeDefined()
   expect(resources.service).toBeDefined()
   expect(resources.directory).toBeDefined()
   // Custom resource present (access via record indexing)
@@ -199,7 +201,14 @@ test("createResources with custom registry executes custom resource", async () =
 test("createResources without registry returns only built-ins", () => {
   const ctx = makeCtx()
   const resources = createResources(ctx)
-  expect(Object.keys(resources).sort()).toEqual(["apt", "directory", "exec", "file", "service"])
+  expect(Object.keys(resources).sort()).toEqual([
+    "apt",
+    "directory",
+    "docker",
+    "exec",
+    "file",
+    "service",
+  ])
 })
 
 test("createResources delegates base bindings to defaultRegistry", () => {
@@ -224,10 +233,10 @@ test("createResources delegates base bindings to defaultRegistry", () => {
 // Registry — getAllDefinitions
 // ---------------------------------------------------------------------------
 
-test("getAllDefinitions returns all 5 resources", () => {
+test("getAllDefinitions returns all 6 resources", () => {
   const defs = getAllDefinitions()
-  expect(defs.size).toEqual(5)
-  expect([...defs.keys()].sort()).toEqual(["apt", "directory", "exec", "file", "service"])
+  expect(defs.size).toEqual(6)
+  expect([...defs.keys()].sort()).toEqual(["apt", "directory", "docker", "exec", "file", "service"])
 })
 
 test("getAllDefinitions returns definitions with type matching key", () => {
@@ -258,7 +267,7 @@ test("getDefinition returns undefined for unknown type", () => {
 
 test("getResourceTypes returns all type names", () => {
   const types = getResourceTypes()
-  expect(types.sort()).toEqual(["apt", "directory", "exec", "file", "service"])
+  expect(types.sort()).toEqual(["apt", "directory", "docker", "exec", "file", "service"])
 })
 
 // ---------------------------------------------------------------------------
@@ -280,9 +289,9 @@ test("getResourceSchema returns undefined for unknown type", () => {
 // Registry — getAllResourceSchemas
 // ---------------------------------------------------------------------------
 
-test("getAllResourceSchemas returns 5 schemas", () => {
+test("getAllResourceSchemas returns 6 schemas", () => {
   const schemas = getAllResourceSchemas()
-  expect(schemas.size).toEqual(5)
+  expect(schemas.size).toEqual(6)
 })
 
 // ---------------------------------------------------------------------------
@@ -352,6 +361,13 @@ test("service annotations: non-destructive, non-idempotent, imperative", () => {
   expect(schema.nature).toEqual("imperative")
 })
 
+test("docker annotations: destructive, non-idempotent, imperative", () => {
+  const schema = getResourceSchema("docker")!
+  expect(schema.annotations.destructive).toEqual(true)
+  expect(schema.annotations.idempotent).toEqual(false)
+  expect(schema.nature).toEqual("imperative")
+})
+
 test("directory annotations: destructive (state:absent), idempotent, declarative", () => {
   const schema = getResourceSchema("directory")!
   expect(schema.annotations.destructive).toEqual(true)
@@ -364,7 +380,7 @@ test("directory annotations: destructive (state:absent), idempotent, declarative
 // ---------------------------------------------------------------------------
 
 test("destructive resources mention state-dependent destructiveness in hints", () => {
-  const destructiveResources = ["file", "apt", "directory"]
+  const destructiveResources = ["file", "apt", "docker", "directory"]
   for (const type of destructiveResources) {
     const schema = getResourceSchema(type)!
     const mentionsAbsent = schema.hints.some((h) => h.toLowerCase().includes("absent"))

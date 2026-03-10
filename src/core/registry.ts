@@ -19,6 +19,7 @@ import { executeResource } from "./resource.ts"
 import { execDefinition } from "../resources/exec.ts"
 import { fileDefinition } from "../resources/file.ts"
 import { aptDefinition } from "../resources/apt.ts"
+import { dockerDefinition } from "../resources/docker.ts"
 import { serviceDefinition } from "../resources/service.ts"
 import { directoryDefinition } from "../resources/directory.ts"
 
@@ -87,6 +88,7 @@ export const defaultRegistry: ResourceRegistry = new ResourceRegistry()
 defaultRegistry.register(execDefinition)
 defaultRegistry.register(fileDefinition)
 defaultRegistry.register(aptDefinition)
+defaultRegistry.register(dockerDefinition)
 defaultRegistry.register(serviceDefinition)
 defaultRegistry.register(directoryDefinition)
 
@@ -153,9 +155,9 @@ export function getRecipeSchema(): Record<string, unknown> {
       createResources: "@grovemotorco/ignition",
       ExecutionContext: "@grovemotorco/ignition (type import)",
     },
-    pattern: "const { exec, file, apt, service, directory } = createResources(ctx)",
+    pattern: "const { exec, file, apt, docker, service, directory } = createResources(ctx)",
     completeExample:
-      "import type { ExecutionContext } from '@grovemotorco/ignition'\nimport { createResources } from '@grovemotorco/ignition'\n\nexport default async function (ctx: ExecutionContext) {\n\tconst { apt, file, service } = createResources(ctx)\n\tawait apt({ name: 'nginx', state: 'present' })\n\tawait file({ path: '/etc/nginx/nginx.conf', content: 'server { listen 80; }' })\n\tawait service({ name: 'nginx', state: 'started', enabled: true })\n}",
+      "import type { ExecutionContext } from '@grovemotorco/ignition'\nimport { createResources } from '@grovemotorco/ignition'\n\nexport default async function (ctx: ExecutionContext) {\n\tconst { docker, file } = createResources(ctx)\n\tawait docker({ name: 'web', image: 'nginx:1.27', ports: [{ hostPort: 8080, containerPort: 80 }] })\n\tawait file({ path: '/etc/motd', content: 'Managed by Ignition\\n' })\n}",
   }
 }
 

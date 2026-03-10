@@ -23,16 +23,16 @@ async function run(args: string[]): Promise<{ code: number; stdout: string; stde
 test("schema resources returns 0 and lists all resource types", async () => {
   const { code, stdout } = await run(["schema", "resources"])
   expect(code).toEqual(0)
-  for (const type of ["exec", "file", "apt", "service", "directory"]) {
+  for (const type of ["exec", "file", "apt", "docker", "service", "directory"]) {
     expect(stdout).toContain(type)
   }
 })
 
-test("schema resources --format json returns valid JSON with all 5 resources", async () => {
+test("schema resources --format json returns valid JSON with all 6 resources", async () => {
   const { code, stdout } = await run(["schema", "resources", "--format", "json"])
   expect(code).toEqual(0)
   const obj = JSON.parse(stdout)
-  expect(Object.keys(obj).sort()).toEqual(["apt", "directory", "exec", "file", "service"])
+  expect(Object.keys(obj).sort()).toEqual(["apt", "directory", "docker", "exec", "file", "service"])
 })
 
 // ---------------------------------------------------------------------------
@@ -46,6 +46,21 @@ test("schema resource exec returns exec schema", async () => {
   expect(schema.nature).toEqual("imperative")
   expect(schema.description).toContain("command")
   expect(schema.annotations.destructive).toEqual(true)
+})
+
+test("schema resource docker returns docker schema", async () => {
+  const { code, stdout } = await run(["schema", "resource", "docker", "--format", "json"])
+  expect(code).toEqual(0)
+  const schema = JSON.parse(stdout)
+  expect(schema.nature).toEqual("imperative")
+  expect(schema.description).toContain("Docker containers")
+  expect(schema.annotations.destructive).toEqual(true)
+  expect(schema.annotations.idempotent).toEqual(false)
+  expect(schema.input.required).toEqual(["name"])
+  expect(schema.input.properties.state.enum).toEqual(["started", "present", "stopped", "absent"])
+  expect(schema.input.properties.pull.default).toEqual("if-missing")
+  expect(schema.output.properties.state.enum).toEqual(["running", "stopped", "absent"])
+  expect(schema.hints.some((hint: string) => hint.includes("image reference"))).toEqual(true)
 })
 
 test("schema resource bogus returns non-zero with error", async () => {

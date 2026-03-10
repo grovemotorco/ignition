@@ -11,7 +11,16 @@
  *   bun scripts/fetch-docs.ts --refresh   # update cache to latest
  */
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, rmSync, appendFileSync } from "node:fs"
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  unlinkSync,
+  rmSync,
+  appendFileSync,
+} from "node:fs"
 import { resolve, basename } from "node:path"
 import { homedir } from "node:os"
 
