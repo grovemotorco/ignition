@@ -23,17 +23,17 @@ interface ResourceDefinition<TInput, TOutput> {
 }
 ```
 
-| Method       | Purpose                                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------------- |
-| `type`       | Unique lowercase identifier (e.g. `"user"`)                                                             |
-| `formatName` | Returns a human-readable name for display. Must be pure (no I/O).                                       |
-| `check`      | Inspects current state and reports whether changes are needed. Keep it side-effect-free where possible. |
-| `apply`      | Mutating. Converges to the desired state and returns the output.                                        |
+| Method       | Purpose                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| `type`       | Unique lowercase identifier (e.g. `"user"`)                                                 |
+| `formatName` | Returns a human-readable name for display. Must be pure (no I/O).                           |
+| `check`      | Inspects current state and reports whether changes are needed. It must be side-effect-free. |
+| `apply`      | Mutating. Converges to the desired state and returns the output.                            |
 
 ## Implementing check()
 
-`check()` should be side-effect-free wherever possible. It inspects the remote host and returns a
-`CheckResult`:
+`check()` must be side-effect-free. It inspects the remote host and returns a `CheckResult` that is
+safe to execute during `ignition run --check`:
 
 ```typescript
 async check(
@@ -67,7 +67,9 @@ Key rules:
 - Return `inDesiredState: true` with `output` when no changes are needed
 - Return `inDesiredState: false` without `output` when changes are needed
 - Include `current` and `desired` for diff display
-- Keep mutating preconditions out of `check()` so `ignition run --check` stays trustworthy
+- Keep mutating or user-controlled preconditions out of `check()` so `ignition run --check` stays trustworthy
+- If the final apply decision depends on an imperative precondition, return `inDesiredState: false`
+  conservatively from `check()` and evaluate that precondition inside `apply()`
 
 ## Implementing apply()
 

@@ -9,6 +9,7 @@
 import type {
   CheckResultCache,
   ErrorMode,
+  ExecutionPhase,
   ExecutionContext as IExecutionContext,
   HostContext,
   HostFacts,
@@ -25,6 +26,7 @@ import type { RedactionPolicy } from "./serialize.ts"
 export type ExecutionContextOptions = {
   connection: Transport
   mode: RunMode
+  phase?: ExecutionPhase | undefined
   errorMode: ErrorMode
   verbose: boolean
   host: HostContext
@@ -57,6 +59,7 @@ export type ExecutionContextOptions = {
 export class ExecutionContextImpl implements IExecutionContext {
   connection: Transport
   mode: RunMode
+  phase?: ExecutionPhase | undefined
   errorMode: ErrorMode
   verbose: boolean
   host: HostContext
@@ -82,6 +85,7 @@ export class ExecutionContextImpl implements IExecutionContext {
   constructor(opts: ExecutionContextOptions) {
     this.connection = opts.connection
     this.mode = opts.mode
+    this.phase = opts.phase
     this.errorMode = opts.errorMode
     this.verbose = opts.verbose
     this.host = opts.host

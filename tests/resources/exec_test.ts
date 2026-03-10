@@ -285,35 +285,63 @@ test("check() throws when both unless and onlyIf are provided", async () => {
     })
   } catch (error) {
     threw = true
-    expect((error as Error).message).toContain("mutually exclusive")
+    expect((error as Error).message).toContain("only one of unless, onlyIf, unsafeCheckUnless")
   }
   expect(threw).toEqual(true)
 })
 
 // ---------------------------------------------------------------------------
-// unless guard — exits 0 (desired state met, skip)
+// Guard validation — only one conditional mechanism may be configured
 // ---------------------------------------------------------------------------
 
-test("check() with unless: guard exits 0 → inDesiredState: true", async () => {
-  const ctx = makeCtx({
-    execFn: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+const invalidGuardCases: Array<{ name: string; input: ExecInput }> = [
+  {
+    name: "unless and unsafeCheckUnless",
+    input: { command: "echo hi", unless: "true", unsafeCheckUnless: "true" },
+  },
+  {
+    name: "unless and unsafeCheckOnlyIf",
+    input: { command: "echo hi", unless: "true", unsafeCheckOnlyIf: "true" },
+  },
+  {
+    name: "onlyIf and unsafeCheckUnless",
+    input: { command: "echo hi", onlyIf: "true", unsafeCheckUnless: "true" },
+  },
+  {
+    name: "onlyIf and unsafeCheckOnlyIf",
+    input: { command: "echo hi", onlyIf: "true", unsafeCheckOnlyIf: "true" },
+  },
+  {
+    name: "unsafeCheckUnless and unsafeCheckOnlyIf",
+    input: { command: "echo hi", unsafeCheckUnless: "true", unsafeCheckOnlyIf: "true" },
+  },
+]
+
+for (const { name, input } of invalidGuardCases) {
+  test(`check() throws when ${name} are combined`, async () => {
+    const ctx = makeCtx()
+    let threw = false
+    try {
+      await execDefinition.check(ctx, input)
+    } catch (error) {
+      threw = true
+      expect((error as Error).message).toContain("only one of unless, onlyIf, unsafeCheckUnless")
+    }
+    expect(threw).toEqual(true)
   })
-
-  const result = await execDefinition.check(ctx, {
-    command: "npm install -g pm2",
-    unless: "command -v pm2",
-  })
-
-  expect(result.inDesiredState).toEqual(true)
-})
+}
 
 // ---------------------------------------------------------------------------
-// unless guard — exits non-zero (not in desired state, run apply)
+// Apply-time preconditions are conservative during check()
 // ---------------------------------------------------------------------------
 
-test("check() with unless: guard exits non-zero → inDesiredState: false", async () => {
+test("check() with unless is conservative and does not execute the precondition", async () => {
+  let execCalled = false
   const ctx = makeCtx({
-    execFn: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "" }),
+    execFn: () => {
+      execCalled = true
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
   })
 
   const result = await execDefinition.check(ctx, {
@@ -322,15 +350,25 @@ test("check() with unless: guard exits non-zero → inDesiredState: false", asyn
   })
 
   expect(result.inDesiredState).toEqual(false)
+  expect(result.current).toEqual({ executed: false, preconditionEvaluated: false })
+  expect(result.desired).toEqual({
+    command: "npm install -g pm2",
+    unless: "command -v pm2",
+  })
+  expect(execCalled).toEqual(false)
 })
 
 // ---------------------------------------------------------------------------
-// onlyIf guard — exits 0 (precondition met, run apply)
+// Apply-time onlyIf is conservative during check()
 // ---------------------------------------------------------------------------
 
-test("check() with onlyIf: guard exits 0 → inDesiredState: false", async () => {
+test("check() with onlyIf is conservative and does not execute the precondition", async () => {
+  let execCalled = false
   const ctx = makeCtx({
-    execFn: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+    execFn: () => {
+      execCalled = true
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
   })
 
   const result = await execDefinition.check(ctx, {
@@ -339,30 +377,139 @@ test("check() with onlyIf: guard exits 0 → inDesiredState: false", async () =>
   })
 
   expect(result.inDesiredState).toEqual(false)
+  expect(result.current).toEqual({ executed: false, preconditionEvaluated: false })
+  expect(result.desired).toEqual({
+    command: "node migrate.js",
+    onlyIf: "test -f /tmp/trigger",
+  })
+  expect(execCalled).toEqual(false)
 })
 
 // ---------------------------------------------------------------------------
-// onlyIf guard — exits non-zero (precondition not met, skip)
+// Unsafe check unless — exits 0 (desired state met, skip)
 // ---------------------------------------------------------------------------
 
-test("check() with onlyIf: guard exits non-zero → inDesiredState: true", async () => {
+test("check() with unsafeCheckUnless: guard exits 0 → inDesiredState: true", async () => {
+  const ctx = makeCtx({
+    execFn: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+  })
+
+  const result = await execDefinition.check(ctx, {
+    command: "npm install -g pm2",
+    unsafeCheckUnless: "command -v pm2",
+  })
+
+  expect(result.inDesiredState).toEqual(true)
+  expect(result.current).toEqual({ unsafeCheckGuardPassed: true })
+  expect(result.output).toEqual({ exitCode: 0, stdout: "", stderr: "" })
+})
+
+// ---------------------------------------------------------------------------
+// Unsafe check unless — exits non-zero (not in desired state)
+// ---------------------------------------------------------------------------
+
+test("check() with unsafeCheckUnless: guard exits non-zero → inDesiredState: false", async () => {
+  const ctx = makeCtx({
+    execFn: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "" }),
+  })
+
+  const result = await execDefinition.check(ctx, {
+    command: "npm install -g pm2",
+    unsafeCheckUnless: "command -v pm2",
+  })
+
+  expect(result.inDesiredState).toEqual(false)
+  expect(result.current).toEqual({ unsafeCheckGuardPassed: false })
+})
+
+// ---------------------------------------------------------------------------
+// Unsafe check onlyIf — exits 0 (precondition met, run apply)
+// ---------------------------------------------------------------------------
+
+test("check() with unsafeCheckOnlyIf: guard exits 0 → inDesiredState: false", async () => {
+  const ctx = makeCtx({
+    execFn: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+  })
+
+  const result = await execDefinition.check(ctx, {
+    command: "node migrate.js",
+    unsafeCheckOnlyIf: "test -f /tmp/trigger",
+  })
+
+  expect(result.inDesiredState).toEqual(false)
+  expect(result.current).toEqual({ unsafeCheckPreconditionMet: true })
+})
+
+// ---------------------------------------------------------------------------
+// Unsafe check onlyIf — exits non-zero (precondition not met, skip)
+// ---------------------------------------------------------------------------
+
+test("check() with unsafeCheckOnlyIf: guard exits non-zero → inDesiredState: true", async () => {
   const ctx = makeCtx({
     execFn: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "" }),
   })
 
   const result = await execDefinition.check(ctx, {
     command: "node migrate.js",
-    onlyIf: "test -f /tmp/trigger",
+    unsafeCheckOnlyIf: "test -f /tmp/trigger",
   })
 
   expect(result.inDesiredState).toEqual(true)
+  expect(result.current).toEqual({ unsafeCheckPreconditionMet: false })
+  expect(result.output).toEqual({ exitCode: 1, stdout: "", stderr: "" })
 })
 
 // ---------------------------------------------------------------------------
-// Guard inherits sudo
+// Apply-time precondition inherits sudo
 // ---------------------------------------------------------------------------
 
-test("check() guard inherits sudo", async () => {
+test("apply-time precondition inherits sudo", async () => {
+  let captured = ""
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      captured = cmd
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "npm install -g pm2",
+    unless: "command -v pm2",
+    sudo: true,
+  })
+
+  expect(result.status).toEqual("ok")
+  expect(captured).toEqual("sudo sh -c 'command -v pm2'")
+})
+
+// ---------------------------------------------------------------------------
+// Apply-time precondition inherits cwd
+// ---------------------------------------------------------------------------
+
+test("apply-time precondition inherits cwd", async () => {
+  let captured = ""
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      captured = cmd
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "make install",
+    unless: "test -f marker",
+    cwd: "/opt/app",
+  })
+
+  expect(result.status).toEqual("ok")
+  expect(captured).toEqual("cd '/opt/app' && test -f marker")
+})
+
+// ---------------------------------------------------------------------------
+// Unsafe check guard inherits sudo
+// ---------------------------------------------------------------------------
+
+test("check() unsafe guard inherits sudo", async () => {
   let captured = ""
   const ctx = makeCtx({
     execFn: (cmd) => {
@@ -373,7 +520,7 @@ test("check() guard inherits sudo", async () => {
 
   await execDefinition.check(ctx, {
     command: "npm install -g pm2",
-    unless: "command -v pm2",
+    unsafeCheckUnless: "command -v pm2",
     sudo: true,
   })
 
@@ -381,10 +528,10 @@ test("check() guard inherits sudo", async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Guard inherits cwd
+// Unsafe check guard inherits cwd
 // ---------------------------------------------------------------------------
 
-test("check() guard inherits cwd", async () => {
+test("check() unsafe guard inherits cwd", async () => {
   let captured = ""
   const ctx = makeCtx({
     execFn: (cmd) => {
@@ -395,7 +542,7 @@ test("check() guard inherits cwd", async () => {
 
   await execDefinition.check(ctx, {
     command: "make install",
-    unless: "test -f marker",
+    unsafeCheckUnless: "test -f marker",
     cwd: "/opt/app",
   })
 
@@ -411,8 +558,7 @@ test("exec with unless (guard passes) → status ok, command never runs", async 
   const ctx = makeCtx({
     execFn: (cmd) => {
       commands.push(cmd)
-      // Guard always succeeds (exit 0)
-      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+      return Promise.resolve({ exitCode: 0, stdout: "pm2\n", stderr: "" })
     },
   })
 
@@ -422,8 +568,39 @@ test("exec with unless (guard passes) → status ok, command never runs", async 
   })
 
   expect(result.status).toEqual("ok")
-  // Only the guard command should have run, not the actual command
   expect(commands).toEqual(["command -v pm2"])
+  expect(result.output).toEqual({ exitCode: 0, stdout: "pm2\n", stderr: "" })
+  expect(result.attempts).toBeDefined()
+  expect(result.attempts!.length).toEqual(2)
+  expect(result.attempts![1].phase).toEqual("apply")
+  expect(result.attempts![1].error).toEqual(undefined)
+})
+
+test("exec with unless (guard passes) is not retried even when retries are configured", async () => {
+  const commands: string[] = []
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      commands.push(cmd)
+      return Promise.resolve({ exitCode: 0, stdout: "pm2\n", stderr: "" })
+    },
+  })
+
+  const result = await executeResource(
+    ctx,
+    execDefinition,
+    {
+      command: "npm install -g pm2",
+      unless: "command -v pm2",
+    },
+    { retries: 2, retryDelayMs: 0, timeoutMs: 0 },
+  )
+
+  expect(result.status).toEqual("ok")
+  expect(commands).toEqual(["command -v pm2"])
+  expect(result.output).toEqual({ exitCode: 0, stdout: "pm2\n", stderr: "" })
+  expect(result.attempts).toBeDefined()
+  expect(result.attempts!.length).toEqual(2)
+  expect(result.attempts!.every((attempt) => attempt.error === undefined)).toEqual(true)
 })
 
 // ---------------------------------------------------------------------------
@@ -437,7 +614,6 @@ test("exec with unless (guard fails) → status changed, both run", async () => 
     execFn: (cmd) => {
       commands.push(cmd)
       callCount++
-      // First call is the guard (exit 1 = not found), second is the apply (exit 0)
       return Promise.resolve({
         exitCode: callCount === 1 ? 1 : 0,
         stdout: "",
@@ -456,16 +632,148 @@ test("exec with unless (guard fails) → status changed, both run", async () => 
 })
 
 // ---------------------------------------------------------------------------
-// Check mode with guard: guard runs but command does not
+// Lifecycle integration: unless guard can converge under postCheck
 // ---------------------------------------------------------------------------
 
-test("check mode with unless guard: guard runs, command does not", async () => {
+test("exec with unless and postCheck → status changed when guard passes after apply", async () => {
+  const commands: string[] = []
+  let callCount = 0
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      commands.push(cmd)
+      callCount++
+      if (callCount === 1) {
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" })
+      }
+      if (callCount === 2) {
+        return Promise.resolve({ exitCode: 0, stdout: "installed", stderr: "" })
+      }
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await executeResource(
+    ctx,
+    execDefinition,
+    {
+      command: "npm install -g pm2",
+      unless: "command -v pm2",
+    },
+    { postCheck: true, retries: 0, timeoutMs: 0 },
+  )
+
+  expect(result.status).toEqual("changed")
+  expect(commands).toEqual(["command -v pm2", "npm install -g pm2", "command -v pm2"])
+  expect(result.attempts).toBeDefined()
+  expect(result.attempts!.length).toEqual(3)
+  expect(result.attempts![2].phase).toEqual("post-check")
+  expect(result.attempts![2].error).toEqual(undefined)
+})
+
+// ---------------------------------------------------------------------------
+// Lifecycle integration: onlyIf guard fails → status "ok"
+// ---------------------------------------------------------------------------
+
+test("exec with onlyIf (guard fails) → status ok, command never runs", async () => {
+  const commands: string[] = []
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      commands.push(cmd)
+      return Promise.resolve({ exitCode: 1, stdout: "", stderr: "missing trigger" })
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "node migrate.js",
+    onlyIf: "test -f /tmp/trigger",
+  })
+
+  expect(result.status).toEqual("ok")
+  expect(commands).toEqual(["test -f /tmp/trigger"])
+  expect(result.output).toEqual({ exitCode: 1, stdout: "", stderr: "missing trigger" })
+  expect(result.attempts).toBeDefined()
+  expect(result.attempts!.length).toEqual(2)
+  expect(result.attempts![1].phase).toEqual("apply")
+  expect(result.attempts![1].error).toEqual(undefined)
+})
+
+// ---------------------------------------------------------------------------
+// Lifecycle integration: onlyIf guard passes → status "changed"
+// ---------------------------------------------------------------------------
+
+test("exec with onlyIf (guard passes) → status changed, both run", async () => {
+  const commands: string[] = []
+  let callCount = 0
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      commands.push(cmd)
+      callCount++
+      return Promise.resolve({
+        exitCode: 0,
+        stdout: callCount === 1 ? "" : "done",
+        stderr: "",
+      })
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "node migrate.js",
+    onlyIf: "test -f /tmp/trigger",
+  })
+
+  expect(result.status).toEqual("changed")
+  expect(commands).toEqual(["test -f /tmp/trigger", "node migrate.js"])
+})
+
+// ---------------------------------------------------------------------------
+// Lifecycle integration: onlyIf can converge under postCheck
+// ---------------------------------------------------------------------------
+
+test("exec with onlyIf and postCheck → status changed when precondition clears", async () => {
+  const commands: string[] = []
+  let callCount = 0
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      commands.push(cmd)
+      callCount++
+      if (callCount === 1) {
+        return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+      }
+      if (callCount === 2) {
+        return Promise.resolve({ exitCode: 0, stdout: "done", stderr: "" })
+      }
+      return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await executeResource(
+    ctx,
+    execDefinition,
+    {
+      command: "node migrate.js",
+      onlyIf: "test -f /tmp/trigger",
+    },
+    { postCheck: true, retries: 0, timeoutMs: 0 },
+  )
+
+  expect(result.status).toEqual("changed")
+  expect(commands).toEqual(["test -f /tmp/trigger", "node migrate.js", "test -f /tmp/trigger"])
+  expect(result.attempts).toBeDefined()
+  expect(result.attempts!.length).toEqual(3)
+  expect(result.attempts![2].phase).toEqual("post-check")
+  expect(result.attempts![2].error).toEqual(undefined)
+})
+
+// ---------------------------------------------------------------------------
+// Check mode with apply-time preconditions: nothing runs
+// ---------------------------------------------------------------------------
+
+test("check mode with unless guard: neither precondition nor command runs", async () => {
   const commands: string[] = []
   const ctx = makeCtx({
     mode: "check",
     execFn: (cmd) => {
       commands.push(cmd)
-      // Guard fails (exit 1 = would need to run apply)
       return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" })
     },
   })
@@ -476,24 +784,47 @@ test("check mode with unless guard: guard runs, command does not", async () => {
   })
 
   expect(result.status).toEqual("changed")
-  // Only guard ran, command skipped due to check mode
-  expect(commands).toEqual(["command -v pm2"])
+  expect(commands).toEqual([])
+})
+
+test("check mode with onlyIf guard: neither precondition nor command runs", async () => {
+  const commands: string[] = []
+  const ctx = makeCtx({
+    mode: "check",
+    execFn: (cmd) => {
+      commands.push(cmd)
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "node migrate.js",
+    onlyIf: "test -f /tmp/trigger",
+  })
+
+  expect(result.status).toEqual("changed")
+  expect(commands).toEqual([])
 })
 
 // ---------------------------------------------------------------------------
-// Check mode with guard that passes: status "ok"
+// Check mode with unsafe guard: guard runs but command does not
 // ---------------------------------------------------------------------------
 
-test("check mode with unless guard that passes: status ok", async () => {
+test("check mode with unsafeCheckUnless: guard runs, command does not", async () => {
+  const commands: string[] = []
   const ctx = makeCtx({
     mode: "check",
-    execFn: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+    execFn: (cmd) => {
+      commands.push(cmd)
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
   })
 
   const result = await executeResource(ctx, execDefinition, {
     command: "npm install -g pm2",
-    unless: "command -v pm2",
+    unsafeCheckUnless: "command -v pm2",
   })
 
   expect(result.status).toEqual("ok")
+  expect(commands).toEqual(["command -v pm2"])
 })

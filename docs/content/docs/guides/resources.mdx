@@ -97,17 +97,22 @@ CLI `--tags` filtering applies to recipe `meta.tags`, not per-resource call meta
 
 Every resource follows a two-phase cycle managed by `executeResource()`:
 
-1. **`check()`** — inspects current state and decides whether changes are needed. Most built-in resources keep this read-only, but guarded `exec` currently runs its guard command during `check()`.
+1. **`check()`** — inspects current state and decides whether changes are needed. For built-in resources, this phase is read-only and safe to run under `ignition run --check`.
 2. **`apply()`** — mutating. Only called if `check()` returned `inDesiredState: false` and the mode is `apply`.
 
 This gives you:
 
-- **Dry-runs skip apply** — `ignition run --check` runs `check()` for every resource without calling `apply()`, but guarded `exec` still runs its guard command during `check()`
+- **Safe dry-runs** — `ignition run --check` runs `check()` for every resource without calling `apply()`
 - **Safe re-runs** — if everything is already correct, nothing changes
 - **Explicit failures** — any resource that can't converge reports `failed`
 
-If you need strictly side-effect-free dry-runs, keep your `check()` logic and any `exec`
-guards read-only.
+Imperative resources can still be conservative. For example, unguarded `exec`, guarded `exec`
+with apply-time preconditions (`unless` / `onlyIf`), and `service` with `state: "restarted"` or
+`"reloaded"` may report "would change" in check mode because they cannot prove the final outcome
+from read-only checks alone.
+
+`exec` also exposes `unsafeCheckUnless` and `unsafeCheckOnlyIf` as explicit escape hatches when you
+intentionally want a command to run during `check()` and accept dry-run side effects.
 
 For the full API of each resource, see the individual reference pages:
 
