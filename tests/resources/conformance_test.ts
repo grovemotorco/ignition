@@ -20,6 +20,7 @@ import type {
 import { execDefinition } from "../../src/resources/exec.ts"
 import { fileDefinition } from "../../src/resources/file.ts"
 import { aptDefinition } from "../../src/resources/apt.ts"
+import { dockerDefinition } from "../../src/resources/docker.ts"
 import { serviceDefinition } from "../../src/resources/service.ts"
 import { directoryDefinition } from "../../src/resources/directory.ts"
 import {
@@ -85,6 +86,53 @@ function makeCtx(
     reporter: silentReporter(),
     vars: overrides.vars,
   })
+}
+
+function dockerImageInspectStdout(id = "sha256:image-v1"): string {
+  return JSON.stringify([
+    {
+      Id: id,
+      Config: {
+        Env: ["BASE=1"],
+        Cmd: ["serve"],
+        Entrypoint: ["/bin/app"],
+        Labels: { base: "true" },
+        User: "",
+        WorkingDir: "/app",
+      },
+    },
+  ])
+}
+
+function dockerContainerInspectStdout(
+  overrides: Partial<{
+    imageId: string
+    running: boolean
+  }> = {},
+): string {
+  return JSON.stringify([
+    {
+      Id: "container-1",
+      Image: overrides.imageId ?? "sha256:image-v1",
+      Config: {
+        Image: "ghcr.io/acme/web:1.0.0",
+        Env: ["BASE=1"],
+        Cmd: ["serve"],
+        Entrypoint: ["/bin/app"],
+        Labels: { base: "true" },
+        User: "",
+        WorkingDir: "/app",
+      },
+      HostConfig: {
+        PortBindings: {},
+        RestartPolicy: { Name: "no" },
+      },
+      Mounts: [],
+      State: {
+        Running: overrides.running ?? true,
+      },
+    },
+  ])
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +240,89 @@ runConformanceTests({
     makeCtx({
       execFn: () => Promise.resolve({ exitCode: 0, stdout: "\n", stderr: "" }),
     }),
+})
+
+// ---------------------------------------------------------------------------
+// docker — convergent by default, imperative with pull=always
+// ---------------------------------------------------------------------------
+
+runConformanceTests({
+  name: "started (container missing)",
+  definition: dockerDefinition,
+  input: { name: "web", image: "ghcr.io/acme/web:1.0.0" },
+  makeCtx: () =>
+    makeCtx({
+      execFn: (cmd) => {
+        if (cmd === "command -v docker >/dev/null 2>&1" || cmd === "docker info >/dev/null 2>&1") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+        }
+        if (cmd === "docker inspect --type container 'web'") {
+          return Promise.resolve({ exitCode: 1, stdout: "", stderr: "Error: No such object: web" })
+        }
+        if (cmd === "docker image inspect 'ghcr.io/acme/web:1.0.0'") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: dockerImageInspectStdout(),
+            stderr: "",
+          })
+        }
+        return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+      },
+    }),
+  convergent: true,
+  makePostApplyCtx: () =>
+    makeCtx({
+      execFn: (cmd) => {
+        if (cmd === "command -v docker >/dev/null 2>&1" || cmd === "docker info >/dev/null 2>&1") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+        }
+        if (cmd === "docker inspect --type container 'web'") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: dockerContainerInspectStdout(),
+            stderr: "",
+          })
+        }
+        if (cmd === "docker image inspect 'ghcr.io/acme/web:1.0.0'") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: dockerImageInspectStdout(),
+            stderr: "",
+          })
+        }
+        return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+      },
+    }),
+})
+
+runConformanceTests({
+  name: "pull always (imperative freshness)",
+  definition: dockerDefinition,
+  input: { name: "web", image: "ghcr.io/acme/web:1.0.0", pull: "always" as const },
+  makeCtx: () =>
+    makeCtx({
+      execFn: (cmd) => {
+        if (cmd === "command -v docker >/dev/null 2>&1" || cmd === "docker info >/dev/null 2>&1") {
+          return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+        }
+        if (cmd === "docker inspect --type container 'web'") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: dockerContainerInspectStdout(),
+            stderr: "",
+          })
+        }
+        if (cmd === "docker image inspect 'ghcr.io/acme/web:1.0.0'") {
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: dockerImageInspectStdout(),
+            stderr: "",
+          })
+        }
+        return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+      },
+    }),
+  convergent: false,
 })
 
 // ---------------------------------------------------------------------------
@@ -323,6 +454,7 @@ test("[conformance] all built-in definitions have unique type fields", () => {
     execDefinition,
     fileDefinition,
     aptDefinition,
+    dockerDefinition,
     serviceDefinition,
     directoryDefinition,
   ]
@@ -336,6 +468,7 @@ test("[conformance] all built-in definitions have lowercase type fields", () => 
     execDefinition,
     fileDefinition,
     aptDefinition,
+    dockerDefinition,
     serviceDefinition,
     directoryDefinition,
   ]
@@ -349,6 +482,7 @@ test("[conformance] all built-in definitions produce valid formatName", () => {
     { def: execDefinition, input: { command: "echo hello" } },
     { def: fileDefinition, input: { path: "/etc/app.conf" } },
     { def: aptDefinition, input: { name: "nginx" } },
+    { def: dockerDefinition, input: { name: "web", image: "ghcr.io/acme/web:1.0.0" } },
     { def: serviceDefinition, input: { name: "nginx" } },
     { def: directoryDefinition, input: { path: "/var/www" } },
   ]
@@ -383,6 +517,33 @@ test("[conformance] apt check() has current.installed", async () => {
   })
   const result = await aptDefinition.check(ctx, { name: "nginx" })
   expect(result.current.installed).toBeDefined()
+})
+
+test("[conformance] docker check() has current.image and desired.state", async () => {
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      if (cmd === "command -v docker >/dev/null 2>&1" || cmd === "docker info >/dev/null 2>&1") {
+        return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+      }
+      if (cmd === "docker inspect --type container 'web'") {
+        return Promise.resolve({ exitCode: 1, stdout: "", stderr: "Error: No such object: web" })
+      }
+      if (cmd === "docker image inspect 'ghcr.io/acme/web:1.0.0'") {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: dockerImageInspectStdout(),
+          stderr: "",
+        })
+      }
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+  const result = await dockerDefinition.check(ctx, {
+    name: "web",
+    image: "ghcr.io/acme/web:1.0.0",
+  })
+  expect(result.current.image).toBeDefined()
+  expect(result.desired.state).toEqual("started")
 })
 
 test("[conformance] service check() has current.active and current.enabled", async () => {

@@ -1,0 +1,126 @@
+---
+title: docker
+description: Manage Docker containers on hosts that already have Docker installed.
+---
+
+The `docker` resource manages a single Docker container. It compares the local image cache and
+container configuration during `check()`, then pulls, creates, recreates, starts, stops, or removes
+the container during `apply()`.
+
+## Input
+
+| Field        | Type                                                   | Default        | Required | Description                                                                                     |
+| ------------ | ------------------------------------------------------ | -------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `name`       | `string`                                               | —              | Yes      | Container name                                                                                  |
+| `image`      | `string`                                               | —              | Yes\*    | Image reference to create or refresh from                                                       |
+| `state`      | `"started" \| "present" \| "stopped" \| "absent"`      | `"started"`    | No       | Desired container lifecycle state                                                               |
+| `pull`       | `"if-missing" \| "always" \| "never"`                  | `"if-missing"` | No       | Image pull strategy                                                                             |
+| `env`        | `Record<string, string>`                               | —              | No       | Environment variables                                                                           |
+| `ports`      | `{ hostPort, containerPort, protocol?, hostIp? }[]`    | —              | No       | Published port mappings                                                                         |
+| `mounts`     | `{ source, target, readOnly? }[]`                      | —              | No       | Bind mounts                                                                                     |
+| `restart`    | `"no" \| "on-failure" \| "unless-stopped" \| "always"` | —              | No       | Restart policy                                                                                  |
+| `command`    | `string[]`                                             | —              | No       | Command argv override                                                                           |
+| `entrypoint` | `string[]`                                             | —              | No       | Entrypoint argv override; multi-element values are split across `--entrypoint` and command args |
+| `labels`     | `Record<string, string>`                               | —              | No       | Container labels                                                                                |
+| `user`       | `string`                                               | —              | No       | User override                                                                                   |
+| `workdir`    | `string`                                               | —              | No       | Working directory override                                                                      |
+
+\* `image` is optional only when `state: "absent"`.
+
+## Output
+
+| Field         | Type                                 | Description                           |
+| ------------- | ------------------------------------ | ------------------------------------- |
+| `name`        | `string`                             | Container name                        |
+| `image`       | `string`                             | Image reference used by the container |
+| `imageId`     | `string`                             | Resolved image ID                     |
+| `containerId` | `string`                             | Container ID                          |
+| `state`       | `"running" \| "stopped" \| "absent"` | Observed state after execution        |
+| `changed`     | `boolean`                            | Whether the container was modified    |
+
+## Behavior
+
+### Check phase
+
+1. Verifies the remote host has the `docker` CLI and the current SSH user can reach the Docker daemon.
+2. For `state: "absent"` — inspects the named container and returns in desired state when it does not exist.
+3. For other states — inspects the local image cache with `docker image inspect`.
+4. If `pull: "never"` and the image is missing locally, `check()` fails fast because `apply()` cannot converge.
+5. Inspects the existing container with `docker inspect --type container` and compares the declared image reference, resolved image ID, env, published ports, bind mounts, restart policy, command, entrypoint, labels, user, and working directory.
+6. `state: "started"` requires the container to exist and be running.
+7. `state: "present"` requires the container to exist; running vs stopped is acceptable.
+8. `state: "stopped"` requires the container to exist and not be running.
+9. `pull: "always"` is the imperative freshness mode, so `check()` always returns not in desired state for non-`absent` inputs to force `apply()`.
+
+### Apply phase
+
+- `pull: "always"` runs `docker pull <image>` every time.
+- `pull: "if-missing"` runs `docker pull <image>` only when the image is absent locally.
+- `pull: "never"` never pulls the image.
+- Config drift, image-reference drift, or image-ID drift recreates the container with `docker rm -f` followed by `docker create`.
+- `state: "started"` starts the container after create or when an existing stopped container only needs a lifecycle change.
+- `state: "stopped"` leaves recreated containers stopped and runs `docker stop` for existing running containers that otherwise match.
+- `state: "present"` creates the container if needed but does not force a running state.
+- `state: "absent"` removes only the container. Images and mounted data are left in place.
+
+## Annotations
+
+| Property              | Value                                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Nature                | Mixed — mostly declarative, but `pull: "always"` is intentionally imperative                                                          |
+| Idempotent            | No overall — schema annotations are worst-case across inputs; default pull modes converge, but `pull: "always"` runs apply every time |
+| Destructive           | Yes — `state: "absent"` removes containers and drift can recreate them                                                                |
+| Read-only             | No                                                                                                                                    |
+| Required capabilities | `exec`                                                                                                                                |
+
+## Examples
+
+### Run nginx on port 8080
+
+```typescript
+await docker({
+  name: "nginx",
+  image: "nginx:1.27",
+  ports: [{ hostPort: 8080, containerPort: 80 }],
+})
+```
+
+### Ensure a container exists and is stopped
+
+```typescript
+await docker({
+  name: "job-runner",
+  image: "ghcr.io/example/job-runner:1.2.3",
+  state: "stopped",
+})
+```
+
+### Recreate when a mutable tag changes
+
+```typescript
+await docker({
+  name: "web",
+  image: "ghcr.io/example/web:latest",
+  pull: "always",
+  ports: [{ hostPort: 8080, containerPort: 8080 }],
+})
+```
+
+`pull: "always"` makes check mode report "would change" on every run so apply mode can refresh the image tag.
+
+### Remove a container
+
+```typescript
+await docker({ name: "old-app", state: "absent" })
+```
+
+## Gotchas
+
+- The remote SSH user must be allowed to run `docker` commands against the daemon. The resource does not prepend `sudo`.
+- Container names must match `[a-zA-Z0-9][a-zA-Z0-9_.-]*` or the resource fails fast before `docker create`.
+- The resource manages one container per call. It does not manage Docker Compose projects, image builds, networks, or named volumes.
+- Drift remediation recreates the container rather than trying to patch fields in place.
+- Changing the declared image reference recreates the container even if both references currently resolve to the same image ID.
+- `pull: "always"` is intentionally non-idempotent at the resource level. In `--check` mode it will always show as a pending change.
+- Docker CLI only accepts one `--entrypoint` token. When you pass multiple `entrypoint` elements, the first becomes `--entrypoint` and the remaining elements are prepended to the command argv.
+- `state: "absent"` removes only the container. It does not delete the image or mounted directories on the host.

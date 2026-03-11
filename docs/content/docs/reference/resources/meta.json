@@ -1,4 +1,4 @@
 {
   "title": "Resources",
-  "pages": ["apt", "file", "directory", "exec", "service"]
+  "pages": ["apt", "docker", "file", "directory", "exec", "service"]
 }

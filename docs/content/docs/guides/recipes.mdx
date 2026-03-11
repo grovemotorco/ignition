@@ -12,14 +12,15 @@ import type { ExecutionContext } from "@grovemotorco/ignition"
 import { createResources } from "@grovemotorco/ignition"
 
 export default async function (ctx: ExecutionContext) {
-  const { apt, exec, file, directory, service } = createResources(ctx)
+  const { apt, docker, exec, file, directory, service } = createResources(ctx)
 
   await apt({ name: "nginx", state: "present" })
+  await docker({ name: "edge-cache", image: "redis:7", state: "started" })
   await service({ name: "nginx", state: "started" })
 }
 ```
 
-The `createResources(ctx)` factory returns all five built-in resources bound to the current context. Destructure the ones you need.
+The `createResources(ctx)` factory returns all six built-in resources bound to the current context. Destructure the ones you need.
 
 ## Resource ordering
 

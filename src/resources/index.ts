@@ -12,11 +12,13 @@ import type { ExecutionContext, ResourceCallMeta, ResourceResult } from "../core
 import type { ExecInput, ExecOutput } from "./exec.ts"
 import type { FileInput, FileOutput } from "./file.ts"
 import type { AptInput, AptOutput } from "./apt.ts"
+import type { DockerInput, DockerOutput } from "./docker.ts"
 import type { ServiceInput, ServiceOutput } from "./service.ts"
 import type { DirectoryInput, DirectoryOutput } from "./directory.ts"
 import { createExec } from "./exec.ts"
 import { createFile } from "./file.ts"
 import { createApt } from "./apt.ts"
+import { createDocker } from "./docker.ts"
 import { createService } from "./service.ts"
 import { createDirectory } from "./directory.ts"
 import { defaultRegistry, type ResourceRegistry } from "../core/registry.ts"
@@ -26,6 +28,7 @@ export type BoundResources = {
   exec: (input: ExecInput, meta?: ResourceCallMeta) => Promise<ResourceResult<ExecOutput>>
   file: (input: FileInput, meta?: ResourceCallMeta) => Promise<ResourceResult<FileOutput>>
   apt: (input: AptInput, meta?: ResourceCallMeta) => Promise<ResourceResult<AptOutput>>
+  docker: (input: DockerInput, meta?: ResourceCallMeta) => Promise<ResourceResult<DockerOutput>>
   service: (input: ServiceInput, meta?: ResourceCallMeta) => Promise<ResourceResult<ServiceOutput>>
   directory: (
     input: DirectoryInput,
@@ -44,8 +47,9 @@ export type BoundResources = {
  * Usage in recipes:
  * ```ts
  * export default async function(ctx: ExecutionContext) {
- *   const { exec, file, apt, service, directory } = createResources(ctx)
+ *   const { exec, file, apt, docker, service, directory } = createResources(ctx)
  *   await apt({ name: 'nginx', state: 'present' })
+ *   await docker({ name: 'edge-proxy', image: 'nginx:1.27', ports: [{ hostPort: 8080, containerPort: 80 }] })
  *   await file({ path: '/etc/nginx/nginx.conf', content: '...' })
  *   await service({ name: 'nginx', state: 'started', enabled: true })
  * }
@@ -59,6 +63,7 @@ export function createResources(
     exec: createExec(ctx),
     file: createFile(ctx),
     apt: createApt(ctx),
+    docker: createDocker(ctx),
     service: createService(ctx),
     directory: createDirectory(ctx),
   }
@@ -83,6 +88,9 @@ export type { FileInput, FileOutput } from "./file.ts"
 
 export { aptDefinition, aptSchema, createApt } from "./apt.ts"
 export type { AptInput, AptOutput } from "./apt.ts"
+
+export { createDocker, dockerDefinition, dockerSchema } from "./docker.ts"
+export type { DockerInput, DockerMountInput, DockerOutput, DockerPortInput } from "./docker.ts"
 
 export { createService, serviceDefinition, serviceSchema } from "./service.ts"
 export type { ServiceInput, ServiceOutput } from "./service.ts"
