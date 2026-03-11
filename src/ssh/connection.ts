@@ -1,10 +1,13 @@
 /**
  * SystemSSHConnection — SSH transport via system `ssh` and `scp` binaries.
  *
- * Uses `Bun.spawn` to shell out. Supports OpenSSH multiplexing
+ * Uses `node:child_process` to shell out. Supports OpenSSH multiplexing
  * (ControlMaster/ControlPersist) for connection reuse across commands.
  */
 
+import { spawn, type ChildProcess } from "node:child_process"
+import type { Readable } from "node:stream"
+import { spawnBuffered } from "../lib/subprocess.ts"
 import { SSHConnectionError, TransferError } from "../core/errors.ts"
 import {
   ALL_TRANSPORT_CAPABILITIES,
@@ -116,35 +119,6 @@ function baseScpArgs(config: SSHConnectionConfig): string[] {
 // Subprocess helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Run a command and buffer stdout/stderr into Uint8Arrays.
- * Handles abort signal by killing the subprocess.
- */
-async function runBuffered(
-  bin: string,
-  args: string[],
-  opts?: { signal?: AbortSignal },
-): Promise<{ exitCode: number; stdout: Uint8Array; stderr: Uint8Array }> {
-  const proc = Bun.spawn([bin, ...args], {
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-  })
-
-  const cleanup = wireAbortSignal(proc, opts?.signal)
-
-  try {
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).arrayBuffer().then((b) => new Uint8Array(b)),
-      new Response(proc.stderr).arrayBuffer().then((b) => new Uint8Array(b)),
-    ])
-    await proc.exited
-    return { exitCode: proc.exitCode ?? 1, stdout, stderr }
-  } finally {
-    cleanup()
-  }
-}
-
 /** Connect an AbortSignal to kill a subprocess. Returns a cleanup function. */
 function wireAbortSignal(proc: { kill(): void }, signal?: AbortSignal): () => void {
   if (!signal) return () => {}
@@ -157,13 +131,28 @@ function wireAbortSignal(proc: { kill(): void }, signal?: AbortSignal): () => vo
   return () => signal.removeEventListener("abort", onAbort)
 }
 
+function waitForClose(child: ChildProcess): Promise<number> {
+  return new Promise((resolve) => {
+    child.on("close", (code) => resolve(code ?? 1))
+  })
+}
+
+function collectStream(stream: Readable): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    stream.on("data", (chunk: Buffer) => chunks.push(chunk))
+    stream.on("end", () => resolve(Buffer.concat(chunks)))
+    stream.on("error", reject)
+  })
+}
+
 // ---------------------------------------------------------------------------
 // SystemSSHConnection
 // ---------------------------------------------------------------------------
 
 /**
  * SSH transport that shells out to the system's `ssh` and `scp` binaries
- * via `Bun.spawn`. Supports OpenSSH multiplexing for connection reuse.
+ * via `node:child_process`. Supports OpenSSH multiplexing for connection reuse.
  *
  * Implements the full Transport interface with all four capabilities:
  * exec, transfer, fetch, and ping.
@@ -213,12 +202,10 @@ export class SystemSSHConnection implements Transport {
     const hasCallbacks = opts?.onStdout !== undefined || opts?.onStderr !== undefined
 
     try {
-      // Streaming path: spawn + ReadableStream when callbacks or stdin are present
+      // Streaming path: spawn with callbacks or stdin
       if (hasStdin || hasCallbacks) {
-        const child = Bun.spawn(["ssh", ...args], {
-          stdin: hasStdin ? "pipe" : "ignore",
-          stdout: "pipe",
-          stderr: "pipe",
+        const child = spawn("ssh", args, {
+          stdio: [hasStdin ? "pipe" : "ignore", "pipe", "pipe"],
         })
         const cleanup = wireAbortSignal(child, controller.signal)
 
@@ -226,8 +213,8 @@ export class SystemSSHConnection implements Transport {
           if (hasStdin) {
             const data =
               typeof opts!.stdin === "string" ? new TextEncoder().encode(opts!.stdin) : opts!.stdin!
-            await child.stdin!.write(data)
-            await child.stdin!.end()
+            child.stdin!.write(data)
+            child.stdin!.end()
           }
 
           if (hasCallbacks) {
@@ -240,23 +227,23 @@ export class SystemSSHConnection implements Transport {
 
           // Has stdin but no callbacks — buffer output
           const [stdoutBuf, stderrBuf] = await Promise.all([
-            new Response(child.stdout).arrayBuffer().then((b) => new Uint8Array(b)),
-            new Response(child.stderr).arrayBuffer().then((b) => new Uint8Array(b)),
+            collectStream(child.stdout!),
+            collectStream(child.stderr!),
           ])
-          await child.exited
+          const exitCode = await waitForClose(child)
           if (controller.signal.aborted) {
             throwAbortError(this.config.hostname, timedOut, timeoutMs, externalSignal)
           }
           const stdout = new TextDecoder().decode(stdoutBuf)
           const stderr = new TextDecoder().decode(stderrBuf)
-          return { exitCode: child.exitCode ?? 1, stdout, stderr }
+          return { exitCode, stdout, stderr }
         } finally {
           cleanup()
         }
       }
 
       // Buffered path: no callbacks, no stdin
-      const output = await runBuffered("ssh", args, { signal: controller.signal })
+      const output = await spawnBuffered("ssh", args, { signal: controller.signal })
       if (controller.signal.aborted) {
         throwAbortError(this.config.hostname, timedOut, timeoutMs, externalSignal)
       }
@@ -282,7 +269,7 @@ export class SystemSSHConnection implements Transport {
     ]
 
     try {
-      const output = await runBuffered("scp", args, { signal })
+      const output = await spawnBuffered("scp", args, { signal })
 
       if (output.exitCode !== 0) {
         const stderr = new TextDecoder().decode(output.stderr)
@@ -309,7 +296,7 @@ export class SystemSSHConnection implements Transport {
     ]
 
     try {
-      const output = await runBuffered("scp", args, { signal })
+      const output = await spawnBuffered("scp", args, { signal })
 
       if (output.exitCode !== 0) {
         const stderr = new TextDecoder().decode(output.stderr)
@@ -354,7 +341,7 @@ export class SystemSSHConnection implements Transport {
       "true",
     ]
     try {
-      const output = await runBuffered("ssh", args)
+      const output = await spawnBuffered("ssh", args)
       if (output.exitCode !== 0) {
         this.lastPingError = new TextDecoder().decode(output.stderr).trim()
       }
@@ -375,7 +362,7 @@ export class SystemSSHConnection implements Transport {
     if (this.config.multiplexing === false) return
 
     try {
-      await runBuffered("ssh", [
+      await spawnBuffered("ssh", [
         "-o",
         `ControlPath=${controlPath(this.config)}`,
         "-O",
@@ -408,35 +395,27 @@ function throwAbortError(
   throw new SSHConnectionError(hostname, `ssh exec aborted`)
 }
 
-/**
- * Read stdout/stderr streams concurrently, invoking callbacks per chunk
- * and accumulating the full output for the buffered ExecResult return.
- */
 async function readStreamsWithCallbacks(
-  child: {
-    stdout: ReadableStream<Uint8Array>
-    stderr: ReadableStream<Uint8Array>
-    exited: Promise<number>
-    exitCode: number | null
-  },
+  child: ChildProcess,
   onStdout?: (chunk: string) => void,
   onStderr?: (chunk: string) => void,
 ): Promise<ExecResult> {
-  const stdoutChunks: Uint8Array[] = []
-  const stderrChunks: Uint8Array[] = []
+  const stdoutChunks: Buffer[] = []
+  const stderrChunks: Buffer[] = []
   const stdoutDecoder = new TextDecoder()
   const stderrDecoder = new TextDecoder()
 
   async function drain(
-    stream: ReadableStream<Uint8Array>,
-    chunks: Uint8Array[],
+    stream: Readable,
+    chunks: Buffer[],
     decoder: TextDecoder,
     callback?: (chunk: string) => void,
   ): Promise<void> {
     for await (const chunk of stream) {
-      chunks.push(chunk)
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      chunks.push(buf)
       if (callback) {
-        callback(decoder.decode(chunk, { stream: true }))
+        callback(decoder.decode(buf, { stream: true }))
       }
     }
     if (callback) {
@@ -446,27 +425,14 @@ async function readStreamsWithCallbacks(
   }
 
   await Promise.all([
-    drain(child.stdout, stdoutChunks, stdoutDecoder, onStdout),
-    drain(child.stderr, stderrChunks, stderrDecoder, onStderr),
+    drain(child.stdout!, stdoutChunks, stdoutDecoder, onStdout),
+    drain(child.stderr!, stderrChunks, stderrDecoder, onStderr),
   ])
 
-  await child.exited
-  const stdout = new TextDecoder().decode(concat(stdoutChunks))
-  const stderr = new TextDecoder().decode(concat(stderrChunks))
-  return { exitCode: child.exitCode ?? 1, stdout, stderr }
-}
-
-/** Concatenate an array of Uint8Array chunks into a single Uint8Array. */
-function concat(chunks: Uint8Array[]): Uint8Array {
-  let total = 0
-  for (const c of chunks) total += c.length
-  const result = new Uint8Array(total)
-  let offset = 0
-  for (const c of chunks) {
-    result.set(c, offset)
-    offset += c.length
-  }
-  return result
+  const exitCode = await waitForClose(child)
+  const stdout = Buffer.concat(stdoutChunks).toString()
+  const stderr = Buffer.concat(stderrChunks).toString()
+  return { exitCode, stdout, stderr }
 }
 
 /** Create a SystemSSHConnection, validating that `ssh` is available. */
@@ -474,7 +440,7 @@ export async function createSystemSSHConnection(
   config: SSHConnectionConfig,
 ): Promise<SystemSSHConnection> {
   try {
-    const check = await runBuffered("ssh", ["-V"])
+    const check = await spawnBuffered("ssh", ["-V"])
     if (check.exitCode !== 0) {
       throw new Error("ssh -V returned non-zero")
     }

@@ -9,8 +9,10 @@
  *
  */
 
+import { readFile } from "node:fs/promises"
+import { createServer, type IncomingMessage } from "node:http"
 import { join } from "node:path"
-import type { ServerWebSocket } from "bun"
+import { WebSocketServer, WebSocket } from "ws"
 import type { EventListener, LifecycleEvent } from "../output/events.ts"
 import { DASHBOARD_HTML } from "./assets.ts"
 
@@ -91,17 +93,93 @@ const MAX_EVENT_BUFFER = 10_000
 const SOCKET_OPEN = 1
 
 function defaultServe(opts: ServerLikeOptions): ServerLike {
-  return Bun.serve<WsData>({
-    port: opts.port,
-    hostname: opts.hostname,
-    fetch: (req, server) => opts.fetch(req, server),
-    websocket: {
-      open: (ws: ServerWebSocket<WsData>) => opts.websocket.open(ws),
-      message: (ws: ServerWebSocket<WsData>, msg: string | Buffer) =>
-        opts.websocket.message(ws, msg),
-      close: (ws: ServerWebSocket<WsData>) => opts.websocket.close(ws),
+  const wss = new WebSocketServer({ noServer: true })
+  let pendingUpgrade: { wsData: WsData; resolve: (ws: WebSocket) => void } | null = null
+
+  const upgradeTarget: ServerLikeUpgradeTarget = {
+    upgrade(_req: Request, upgradeOpts: { data: WsData }): boolean {
+      pendingUpgrade = {
+        wsData: upgradeOpts.data,
+        resolve: () => {},
+      }
+      return true
     },
+  }
+
+  const server = createServer(async (req, res) => {
+    const url = `http://${opts.hostname}:${opts.port}${req.url ?? "/"}`
+    const request = new Request(url, { method: req.method, headers: nodeHeadersToHeaders(req) })
+    const response = await opts.fetch(request, upgradeTarget)
+    if (!response) {
+      res.writeHead(400).end()
+      return
+    }
+    res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
+    const body = await response.arrayBuffer()
+    res.end(Buffer.from(body))
   })
+
+  server.on("upgrade", (req: IncomingMessage, socket, head) => {
+    const url = `http://${opts.hostname}:${opts.port}${req.url ?? "/"}`
+    const request = new Request(url, { method: req.method, headers: nodeHeadersToHeaders(req) })
+    pendingUpgrade = null
+    void opts.fetch(request, upgradeTarget)
+
+    if (pendingUpgrade) {
+      const wsData = (pendingUpgrade as { wsData: WsData }).wsData
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        const socketLike = wrapWs(ws, wsData)
+        opts.websocket.open(socketLike)
+        ws.on("message", (msg) => {
+          opts.websocket.message(
+            socketLike,
+            typeof msg === "string" ? msg : Buffer.from(msg as Buffer),
+          )
+        })
+        ws.on("close", () => opts.websocket.close(socketLike))
+      })
+    } else {
+      socket.destroy()
+    }
+  })
+
+  server.listen(opts.port, opts.hostname)
+  return {
+    port: opts.port,
+    stop() {
+      wss.close()
+      server.close()
+    },
+  }
+}
+
+function nodeHeadersToHeaders(req: IncomingMessage): Headers {
+  const headers = new Headers()
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        for (const v of value) headers.append(key, v)
+      } else {
+        headers.set(key, value)
+      }
+    }
+  }
+  return headers
+}
+
+function wrapWs(ws: WebSocket, data: WsData): ServerSocketLike {
+  return {
+    data,
+    get readyState() {
+      return ws.readyState
+    },
+    send(msg: string) {
+      ws.send(msg)
+    },
+    close() {
+      ws.close()
+    },
+  }
 }
 
 /** Map file extensions to MIME types. */
@@ -426,22 +504,22 @@ export class DashboardServer {
     const filePath = pathname === "/" ? "/index.html" : pathname
     const fullPath = join(this.#opts.staticDir!, filePath)
 
-    const file = Bun.file(fullPath)
-    if (await file.exists()) {
-      return new Response(file, {
+    try {
+      const content = await readFile(fullPath)
+      return new Response(content, {
         headers: { "Content-Type": contentType(filePath) },
       })
+    } catch {
+      // SPA fallback: serve index.html for unmatched routes
+      try {
+        const index = await readFile(join(this.#opts.staticDir!, "index.html"))
+        return new Response(index, {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        })
+      } catch {
+        return new Response("Not Found", { status: 404 })
+      }
     }
-
-    // SPA fallback: serve index.html for unmatched routes
-    const index = Bun.file(join(this.#opts.staticDir!, "index.html"))
-    if (await index.exists()) {
-      return new Response(index, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      })
-    }
-
-    return new Response("Not Found", { status: 404 })
   }
 
   /** Build run summaries for /api/runs (includes current + history). */
