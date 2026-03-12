@@ -585,7 +585,7 @@ async function inspectContainer(
   )
   if (result.exitCode !== 0) {
     const message = `${result.stderr} ${result.stdout}`.toLowerCase()
-    if (message.includes("no such object")) {
+    if (message.includes("no such object") || message.includes("no such container")) {
       return { present: false }
     }
     const detail =
