@@ -828,3 +828,179 @@ test("check mode with unsafeCheckUnless: guard runs, command does not", async ()
   expect(result.status).toEqual("ok")
   expect(commands).toEqual(["command -v pm2"])
 })
+
+// ---------------------------------------------------------------------------
+// shell option — preamble prepended to command
+// ---------------------------------------------------------------------------
+
+const SHELL_PREAMBLE_FAILURE_SENTINEL = "__IGNITION_SHELL_PREAMBLE_FAILED__"
+
+test("apply() prepends shell preamble before command", async () => {
+  let captured = ""
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      captured = cmd
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  await execDefinition.apply(ctx, {
+    command: "nvm install 24",
+    shell: '. "$HOME/.nvm/nvm.sh"',
+  })
+
+  expect(captured).toEqual(`sh -c '__ignition_run_preamble() {
+. "$HOME/.nvm/nvm.sh"
+}
+if __ignition_run_preamble; then
+  :
+else
+  __ignition_shell_rc=$?
+  exit "$__ignition_shell_rc"
+fi
+nvm install 24'`)
+})
+
+// ---------------------------------------------------------------------------
+// shell + cwd + env + sudo combined
+// ---------------------------------------------------------------------------
+
+test("apply() combines shell with cwd, env, and sudo correctly", async () => {
+  let captured = ""
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      captured = cmd
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  await execDefinition.apply(ctx, {
+    command: "make install",
+    shell: ". /opt/env.sh",
+    cwd: "/opt/app",
+    env: { CC: "gcc" },
+    sudo: true,
+  })
+
+  expect(
+    captured.startsWith("sudo sh -c 'cd '\\''/opt/app'\\'' && CC='\\''gcc'\\'' sh -c '\\''"),
+  ).toEqual(true)
+  expect(captured).toContain(". /opt/env.sh")
+  expect(captured).toContain("make install")
+})
+
+// ---------------------------------------------------------------------------
+// Guard commands inherit shell
+// ---------------------------------------------------------------------------
+
+test("apply-time precondition inherits shell", async () => {
+  let captured = ""
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      captured = cmd
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "nvm install 24",
+    shell: '. "$HOME/.nvm/nvm.sh"',
+    unless: "node --version | grep -q '^v24'",
+  })
+
+  expect(result.status).toEqual("ok")
+  expect(captured).toContain("__ignition_run_preamble()")
+  expect(captured).toContain('. "$HOME/.nvm/nvm.sh"')
+  expect(captured).toContain(SHELL_PREAMBLE_FAILURE_SENTINEL)
+  expect(captured).toContain("node --version | grep -q")
+})
+
+test("check() unsafe guard inherits shell", async () => {
+  let captured = ""
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      captured = cmd
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  await execDefinition.check(ctx, {
+    command: "nvm install 24",
+    shell: '. "$HOME/.nvm/nvm.sh"',
+    unsafeCheckUnless: "node --version | grep -q '^v24'",
+  })
+
+  expect(captured).toContain(SHELL_PREAMBLE_FAILURE_SENTINEL)
+  expect(captured).toContain("node --version | grep -q")
+})
+
+// ---------------------------------------------------------------------------
+// shell + env composition
+// ---------------------------------------------------------------------------
+
+test("apply() applies env to the shell preamble and command", async () => {
+  let captured = ""
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      captured = cmd
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  await execDefinition.apply(ctx, {
+    command: "make install",
+    shell: ". /opt/env.sh",
+    env: { CC: "gcc" },
+  })
+
+  expect(captured.startsWith("CC='gcc' sh -c '")).toEqual(true)
+  expect(captured).toContain(". /opt/env.sh")
+  expect(captured).toContain("make install")
+})
+
+// ---------------------------------------------------------------------------
+// shell failures abort guards
+// ---------------------------------------------------------------------------
+
+test("apply() fails when the shell preamble fails before onlyIf", async () => {
+  const ctx = makeCtx({
+    errorMode: "fail-at-end",
+    execFn: () =>
+      Promise.resolve({
+        exitCode: 1,
+        stdout: "",
+        stderr: `boom\n${SHELL_PREAMBLE_FAILURE_SENTINEL}:1\n`,
+      }),
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "echo hi",
+    shell: "false",
+    onlyIf: "true",
+  })
+
+  expect(result.status).toEqual("failed")
+  expect(result.error?.message).toContain("shell preamble for onlyIf guard")
+})
+
+test("check() fails when the shell preamble fails before unsafeCheckOnlyIf", async () => {
+  const ctx = makeCtx({
+    mode: "check",
+    errorMode: "fail-at-end",
+    execFn: () =>
+      Promise.resolve({
+        exitCode: 1,
+        stdout: "",
+        stderr: `boom\n${SHELL_PREAMBLE_FAILURE_SENTINEL}:1\n`,
+      }),
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "echo hi",
+    shell: "false",
+    unsafeCheckOnlyIf: "true",
+  })
+
+  expect(result.status).toEqual("failed")
+  expect(result.error?.message).toContain("shell preamble for unsafeCheckOnlyIf guard")
+})
