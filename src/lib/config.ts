@@ -6,6 +6,7 @@
  */
 
 import { resolve } from "node:path"
+import { fileExists } from "./fs.ts"
 import type { ErrorMode } from "../core/types.ts"
 import { DEFAULT_CONCURRENCY, DEFAULT_RESOURCE_POLICY } from "../core/types.ts"
 import { DEFAULT_CACHE_TTL_MS } from "../core/cache.ts"
@@ -87,7 +88,7 @@ export async function loadConfig(cwd: string): Promise<IgnitionConfig> {
   const configPath = resolve(cwd, CONFIG_FILENAME)
 
   try {
-    const exists = await Bun.file(configPath).exists()
+    const exists = await fileExists(configPath)
     if (!exists) return {}
 
     const url = new URL(`file://${configPath}`).href

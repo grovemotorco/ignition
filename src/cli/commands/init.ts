@@ -1,7 +1,9 @@
 import { Cli } from "incur"
+import { spawn } from "node:child_process"
 import { readFileSync } from "node:fs"
-import { mkdir } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
+import { fileExists } from "../../lib/fs.ts"
 import { loggerVarsSchema } from "../logger.ts"
 
 const EXAMPLE_INVENTORY = `import type { Inventory } from '@grovemotorco/ignition'
@@ -64,10 +66,6 @@ type PackageJson = {
   [key: string]: unknown
 }
 
-async function fileExists(path: string): Promise<boolean> {
-  return Bun.file(path).exists()
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -84,7 +82,7 @@ function sanitizePackageName(name: string): string {
 }
 
 async function writePackageJson(pkg: PackageJson): Promise<void> {
-  await Bun.write(PACKAGE_JSON_FILE, `${JSON.stringify(pkg, null, 2)}\n`)
+  await writeFile(PACKAGE_JSON_FILE, `${JSON.stringify(pkg, null, 2)}\n`)
 }
 
 async function ensureProjectPackageJson(): Promise<{ pkg: PackageJson; created: boolean }> {
@@ -100,7 +98,7 @@ async function ensureProjectPackageJson(): Promise<{ pkg: PackageJson; created: 
 
   let parsed: unknown
   try {
-    parsed = JSON.parse(await Bun.file(PACKAGE_JSON_FILE).text())
+    parsed = JSON.parse(await readFile(PACKAGE_JSON_FILE, "utf-8"))
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     throw new Error(`Failed to parse ${PACKAGE_JSON_FILE}: ${message}`)
@@ -176,24 +174,23 @@ async function writeEmbeddedLibraryToNodeModules(content: string): Promise<boole
   try {
     const pkgDir = join("node_modules", "@grovemotorco", "ignition")
     await mkdir(pkgDir, { recursive: true })
-    await Bun.write(
+    await writeFile(
       join(pkgDir, "package.json"),
       `${JSON.stringify({ name: IGNITION_PACKAGE, main: "index.js", type: "module" }, null, 2)}\n`,
     )
-    await Bun.write(join(pkgDir, "index.js"), content)
+    await writeFile(join(pkgDir, "index.js"), content)
     return true
   } catch {
     return false
   }
 }
 
-async function runInstallCommand(command: string[]): Promise<number> {
-  const proc = Bun.spawn([...command], {
-    stdout: "inherit",
-    stderr: "inherit",
-    stdin: "inherit",
+function runInstallCommand(command: string[]): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command[0], command.slice(1), { stdio: "inherit" })
+    child.on("error", reject)
+    child.on("close", (code) => resolve(code ?? 1))
   })
-  return await proc.exited
 }
 
 /** CLI command that scaffolds a starter Ignition project in the current directory. */
@@ -271,7 +268,7 @@ export const init = Cli.create("init", {
         yield `skip  ${label} (already exists)`
         continue
       }
-      await Bun.write(path, content)
+      await writeFile(path, content)
       yield `create  ${label}`
       created++
     }

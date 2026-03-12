@@ -9,8 +9,10 @@
  *
  */
 
+import { readFile } from "node:fs/promises"
+import { createServer, type IncomingMessage } from "node:http"
 import { join } from "node:path"
-import type { ServerWebSocket } from "bun"
+import { WebSocketServer, WebSocket } from "ws"
 import type { EventListener, LifecycleEvent } from "../output/events.ts"
 import { DASHBOARD_HTML } from "./assets.ts"
 
@@ -48,7 +50,7 @@ type ServerLikeOptions = {
   websocket: ServerLikeWebsocketHandlers
 }
 
-type ServeLike = (opts: ServerLikeOptions) => ServerLike
+type ServeLike = (opts: ServerLikeOptions) => ServerLike | Promise<ServerLike>
 
 /** Testability seam for injecting a custom `serve` implementation. */
 export type DashboardServerDeps = {
@@ -90,18 +92,111 @@ export type RunSummary = {
 const MAX_EVENT_BUFFER = 10_000
 const SOCKET_OPEN = 1
 
-function defaultServe(opts: ServerLikeOptions): ServerLike {
-  return Bun.serve<WsData>({
-    port: opts.port,
-    hostname: opts.hostname,
-    fetch: (req, server) => opts.fetch(req, server),
-    websocket: {
-      open: (ws: ServerWebSocket<WsData>) => opts.websocket.open(ws),
-      message: (ws: ServerWebSocket<WsData>, msg: string | Buffer) =>
-        opts.websocket.message(ws, msg),
-      close: (ws: ServerWebSocket<WsData>) => opts.websocket.close(ws),
+async function defaultServe(opts: ServerLikeOptions): Promise<ServerLike> {
+  const wss = new WebSocketServer({ noServer: true })
+  let pendingUpgrade: { wsData: WsData; resolve: (ws: WebSocket) => void } | null = null
+  let boundPort = opts.port
+
+  const upgradeTarget: ServerLikeUpgradeTarget = {
+    upgrade(_req: Request, upgradeOpts: { data: WsData }): boolean {
+      pendingUpgrade = {
+        wsData: upgradeOpts.data,
+        resolve: () => {},
+      }
+      return true
     },
+  }
+
+  const server = createServer(async (req, res) => {
+    const url = `http://${opts.hostname}:${boundPort}${req.url ?? "/"}`
+    const request = new Request(url, { method: req.method, headers: nodeHeadersToHeaders(req) })
+    const response = await opts.fetch(request, upgradeTarget)
+    if (!response) {
+      res.writeHead(400).end()
+      return
+    }
+    res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
+    const body = await response.arrayBuffer()
+    res.end(Buffer.from(body))
   })
+
+  server.on("upgrade", (req: IncomingMessage, socket, head) => {
+    const url = `http://${opts.hostname}:${boundPort}${req.url ?? "/"}`
+    const request = new Request(url, { method: req.method, headers: nodeHeadersToHeaders(req) })
+    pendingUpgrade = null
+    void opts.fetch(request, upgradeTarget)
+
+    if (pendingUpgrade) {
+      const wsData = (pendingUpgrade as { wsData: WsData }).wsData
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        const socketLike = wrapWs(ws, wsData)
+        opts.websocket.open(socketLike)
+        ws.on("message", (msg) => {
+          opts.websocket.message(
+            socketLike,
+            typeof msg === "string" ? msg : Buffer.from(msg as Buffer),
+          )
+        })
+        ws.on("close", () => opts.websocket.close(socketLike))
+      })
+    } else {
+      socket.destroy()
+    }
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: Error) => {
+      server.off("listening", onListening)
+      reject(err)
+    }
+    const onListening = () => {
+      server.off("error", onError)
+      resolve()
+    }
+    server.once("error", onError)
+    server.listen(opts.port, opts.hostname, onListening)
+  })
+  const address = server.address()
+  if (address && typeof address === "object") {
+    boundPort = address.port
+  }
+
+  return {
+    port: boundPort,
+    stop() {
+      wss.close()
+      server.close()
+    },
+  }
+}
+
+function nodeHeadersToHeaders(req: IncomingMessage): Headers {
+  const headers = new Headers()
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        for (const v of value) headers.append(key, v)
+      } else {
+        headers.set(key, value)
+      }
+    }
+  }
+  return headers
+}
+
+function wrapWs(ws: WebSocket, data: WsData): ServerSocketLike {
+  return {
+    data,
+    get readyState() {
+      return ws.readyState
+    },
+    send(msg: string) {
+      ws.send(msg)
+    },
+    close() {
+      ws.close()
+    },
+  }
 }
 
 /** Map file extensions to MIME types. */
@@ -178,7 +273,7 @@ export class DashboardServer {
 
   /** Start the HTTP/WebSocket server. Resolves when the server is listening. */
   async start(): Promise<void> {
-    this.#server = this.#deps.serve({
+    this.#server = await this.#deps.serve({
       port: this.#opts.port,
       hostname: this.#opts.hostname,
       fetch: (req: Request, server: ServerLikeUpgradeTarget) => {
@@ -426,22 +521,22 @@ export class DashboardServer {
     const filePath = pathname === "/" ? "/index.html" : pathname
     const fullPath = join(this.#opts.staticDir!, filePath)
 
-    const file = Bun.file(fullPath)
-    if (await file.exists()) {
-      return new Response(file, {
+    try {
+      const content = await readFile(fullPath)
+      return new Response(content, {
         headers: { "Content-Type": contentType(filePath) },
       })
+    } catch {
+      // SPA fallback: serve index.html for unmatched routes
+      try {
+        const index = await readFile(join(this.#opts.staticDir!, "index.html"))
+        return new Response(index, {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        })
+      } catch {
+        return new Response("Not Found", { status: 404 })
+      }
     }
-
-    // SPA fallback: serve index.html for unmatched routes
-    const index = Bun.file(join(this.#opts.staticDir!, "index.html"))
-    if (await index.exists()) {
-      return new Response(index, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      })
-    }
-
-    return new Response("Not Found", { status: 404 })
   }
 
   /** Build run summaries for /api/runs (includes current + history). */
