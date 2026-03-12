@@ -252,6 +252,9 @@ export class SystemSSHConnection implements Transport {
       return { exitCode: output.exitCode, stdout, stderr }
     } catch (err) {
       if (err instanceof SSHConnectionError) throw err
+      if (controller.signal.aborted) {
+        throwAbortError(this.config.hostname, timedOut, timeoutMs, externalSignal)
+      }
       const error = err instanceof Error ? err : new Error(String(err))
       throw new SSHConnectionError(this.config.hostname, `ssh exec failed: ${error.message}`, error)
     } finally {

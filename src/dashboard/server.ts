@@ -50,7 +50,7 @@ type ServerLikeOptions = {
   websocket: ServerLikeWebsocketHandlers
 }
 
-type ServeLike = (opts: ServerLikeOptions) => ServerLike
+type ServeLike = (opts: ServerLikeOptions) => ServerLike | Promise<ServerLike>
 
 /** Testability seam for injecting a custom `serve` implementation. */
 export type DashboardServerDeps = {
@@ -92,9 +92,10 @@ export type RunSummary = {
 const MAX_EVENT_BUFFER = 10_000
 const SOCKET_OPEN = 1
 
-function defaultServe(opts: ServerLikeOptions): ServerLike {
+async function defaultServe(opts: ServerLikeOptions): Promise<ServerLike> {
   const wss = new WebSocketServer({ noServer: true })
   let pendingUpgrade: { wsData: WsData; resolve: (ws: WebSocket) => void } | null = null
+  let boundPort = opts.port
 
   const upgradeTarget: ServerLikeUpgradeTarget = {
     upgrade(_req: Request, upgradeOpts: { data: WsData }): boolean {
@@ -107,7 +108,7 @@ function defaultServe(opts: ServerLikeOptions): ServerLike {
   }
 
   const server = createServer(async (req, res) => {
-    const url = `http://${opts.hostname}:${opts.port}${req.url ?? "/"}`
+    const url = `http://${opts.hostname}:${boundPort}${req.url ?? "/"}`
     const request = new Request(url, { method: req.method, headers: nodeHeadersToHeaders(req) })
     const response = await opts.fetch(request, upgradeTarget)
     if (!response) {
@@ -120,7 +121,7 @@ function defaultServe(opts: ServerLikeOptions): ServerLike {
   })
 
   server.on("upgrade", (req: IncomingMessage, socket, head) => {
-    const url = `http://${opts.hostname}:${opts.port}${req.url ?? "/"}`
+    const url = `http://${opts.hostname}:${boundPort}${req.url ?? "/"}`
     const request = new Request(url, { method: req.method, headers: nodeHeadersToHeaders(req) })
     pendingUpgrade = null
     void opts.fetch(request, upgradeTarget)
@@ -143,9 +144,25 @@ function defaultServe(opts: ServerLikeOptions): ServerLike {
     }
   })
 
-  server.listen(opts.port, opts.hostname)
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: Error) => {
+      server.off("listening", onListening)
+      reject(err)
+    }
+    const onListening = () => {
+      server.off("error", onError)
+      resolve()
+    }
+    server.once("error", onError)
+    server.listen(opts.port, opts.hostname, onListening)
+  })
+  const address = server.address()
+  if (address && typeof address === "object") {
+    boundPort = address.port
+  }
+
   return {
-    port: opts.port,
+    port: boundPort,
     stop() {
       wss.close()
       server.close()
@@ -256,7 +273,7 @@ export class DashboardServer {
 
   /** Start the HTTP/WebSocket server. Resolves when the server is listening. */
   async start(): Promise<void> {
-    this.#server = this.#deps.serve({
+    this.#server = await this.#deps.serve({
       port: this.#opts.port,
       hostname: this.#opts.hostname,
       fetch: (req: Request, server: ServerLikeUpgradeTarget) => {
