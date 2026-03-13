@@ -59,6 +59,19 @@ function makeCtx(
   })
 }
 
+async function runLocalShell(command: string): Promise<ExecResult> {
+  const proc = Bun.spawn(["sh", "-c", command], {
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  const exitCode = await proc.exited
+  return { exitCode, stdout, stderr }
+}
+
 // ---------------------------------------------------------------------------
 // check() — always not in desired state
 // ---------------------------------------------------------------------------
@@ -849,16 +862,10 @@ test("apply() prepends shell preamble before command", async () => {
     shell: '. "$HOME/.nvm/nvm.sh"',
   })
 
-  expect(captured).toEqual(`sh -c '__ignition_run_preamble() {
-. "$HOME/.nvm/nvm.sh"
-}
-if __ignition_run_preamble; then
-  :
-else
-  __ignition_shell_rc=$?
-  exit "$__ignition_shell_rc"
-fi
-nvm install 24'`)
+  expect(captured.startsWith("sh -c '__ignition_preamble_failed() {")).toEqual(true)
+  expect(captured).toContain('if eval "$1"; then')
+  expect(captured).toContain('eval "$2"')
+  expect(captured).toContain(`-- '. "$HOME/.nvm/nvm.sh"' 'nvm install 24'`)
 })
 
 // ---------------------------------------------------------------------------
@@ -909,7 +916,8 @@ test("apply-time precondition inherits shell", async () => {
   })
 
   expect(result.status).toEqual("ok")
-  expect(captured).toContain("__ignition_run_preamble()")
+  expect(captured).toContain("__ignition_preamble_failed()")
+  expect(captured).toContain('if eval "$1"; then')
   expect(captured).toContain('. "$HOME/.nvm/nvm.sh"')
   expect(captured).toContain(SHELL_PREAMBLE_FAILURE_SENTINEL)
   expect(captured).toContain("node --version | grep -q")
@@ -983,6 +991,48 @@ test("apply() fails when the shell preamble fails before onlyIf", async () => {
   expect(result.error?.message).toContain("shell preamble for onlyIf guard")
 })
 
+test("apply() fails when the shell preamble exits before onlyIf without masking the failure", async () => {
+  const commands: string[] = []
+  const ctx = makeCtx({
+    errorMode: "fail-at-end",
+    execFn: (cmd) => {
+      commands.push(cmd)
+      return runLocalShell(cmd)
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "printf should-not-run",
+    shell: "exit 9",
+    onlyIf: "true",
+  })
+
+  expect(result.status).toEqual("failed")
+  expect(result.error?.message).toContain("shell preamble for onlyIf guard")
+  expect(commands.length).toEqual(1)
+})
+
+test("apply() fails when the shell preamble has a syntax error before onlyIf", async () => {
+  const commands: string[] = []
+  const ctx = makeCtx({
+    errorMode: "fail-at-end",
+    execFn: (cmd) => {
+      commands.push(cmd)
+      return runLocalShell(cmd)
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "printf should-not-run",
+    shell: "(",
+    onlyIf: "true",
+  })
+
+  expect(result.status).toEqual("failed")
+  expect(result.error?.message).toContain("shell preamble for onlyIf guard")
+  expect(commands.length).toEqual(1)
+})
+
 test("check() fails when the shell preamble fails before unsafeCheckOnlyIf", async () => {
   const ctx = makeCtx({
     mode: "check",
@@ -1003,4 +1053,26 @@ test("check() fails when the shell preamble fails before unsafeCheckOnlyIf", asy
 
   expect(result.status).toEqual("failed")
   expect(result.error?.message).toContain("shell preamble for unsafeCheckOnlyIf guard")
+})
+
+test("check() fails when the shell preamble exits before unsafeCheckOnlyIf", async () => {
+  const commands: string[] = []
+  const ctx = makeCtx({
+    mode: "check",
+    errorMode: "fail-at-end",
+    execFn: (cmd) => {
+      commands.push(cmd)
+      return runLocalShell(cmd)
+    },
+  })
+
+  const result = await executeResource(ctx, execDefinition, {
+    command: "printf should-not-run",
+    shell: "exit 7",
+    unsafeCheckOnlyIf: "true",
+  })
+
+  expect(result.status).toEqual("failed")
+  expect(result.error?.message).toContain("shell preamble for unsafeCheckOnlyIf guard")
+  expect(commands.length).toEqual(1)
 })

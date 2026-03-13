@@ -25,7 +25,7 @@ export type ExecInput = {
   sudo?: boolean | undefined
   /** Working directory for command execution. */
   cwd?: string | undefined
-  /** Shell preamble to run before the command (e.g., sourcing files, exporting variables). */
+  /** POSIX shell preamble to run before the command (e.g., sourcing files, exporting variables). */
   shell?: string | undefined
   /** Environment variables to set. */
   env?: Record<string, string> | undefined
@@ -145,13 +145,9 @@ function wrapWithShellPreamble(
   options?: { markPreambleFailure?: boolean },
 ): string {
   const lines = [
-    "__ignition_run_preamble() {",
-    shell,
-    "}",
-    "if __ignition_run_preamble; then",
-    "  :",
-    "else",
-    "  __ignition_shell_rc=$?",
+    "__ignition_preamble_failed() {",
+    "  __ignition_shell_rc=$1",
+    "  trap - EXIT",
   ]
 
   if (options?.markPreambleFailure) {
@@ -160,8 +156,27 @@ function wrapWithShellPreamble(
     )
   }
 
-  lines.push('  exit "$__ignition_shell_rc"', "fi", command)
-  return `sh -c ${shellQuote(lines.join("\n"))}`
+  lines.push('  exit "$__ignition_shell_rc"', "}")
+
+  if (options?.markPreambleFailure) {
+    lines.push(
+      "__ignition_preamble_phase=1",
+      `trap '__ignition_shell_rc=$?; if [ "$__ignition_preamble_phase" = 1 ]; then __ignition_preamble_failed "$__ignition_shell_rc"; fi' EXIT`,
+    )
+  }
+
+  lines.push(
+    'if eval "$1"; then',
+    ...(options?.markPreambleFailure ? ["  __ignition_preamble_phase=0", "  trap - EXIT"] : []),
+    '  eval "$2"',
+    "else",
+    "  __ignition_shell_rc=$?",
+    ...(options?.markPreambleFailure ? ["  __ignition_preamble_phase=0"] : []),
+    '  __ignition_preamble_failed "$__ignition_shell_rc"',
+    "fi",
+  )
+
+  return `sh -c ${shellQuote(lines.join("\n"))} -- ${shellQuote(shell)} ${shellQuote(command)}`
 }
 
 function guardShellPreambleFailure(
@@ -235,6 +250,7 @@ export const execSchema: ResourceSchema = {
     "Use shell to source files or export variables that the command needs (e.g., NVM, rbenv, pyenv)",
     "shell is prepended as '<shell> && <command>' — it runs in the same shell session",
     "when shell is set, env vars apply to both the preamble and the command",
+    "shell runs via 'sh -c' — use POSIX syntax or invoke another shell explicitly if needed",
     "a failing shell preamble aborts guard evaluation instead of being treated as a false guard",
     "Preconditions and unsafe check guards inherit sudo, cwd, shell, and env from the parent input",
     "check defaults to true — non-zero exit codes are treated as failures unless check: false",
@@ -253,7 +269,7 @@ export const execSchema: ResourceSchema = {
       shell: {
         type: "string",
         description:
-          "Shell preamble to run before the command (e.g., sourcing files, exporting variables)",
+          "POSIX shell preamble to run before the command (e.g., sourcing files, exporting variables)",
       },
       env: {
         type: "object",
