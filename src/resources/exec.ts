@@ -144,11 +144,7 @@ function wrapWithShellPreamble(
   shell: string,
   options?: { markPreambleFailure?: boolean },
 ): string {
-  const lines = [
-    "__ignition_preamble_failed() {",
-    "  __ignition_shell_rc=$1",
-    "  trap - EXIT",
-  ]
+  const lines = ["__ignition_preamble_failed() {", "  __ignition_shell_rc=$1", "  trap - EXIT"]
 
   if (options?.markPreambleFailure) {
     lines.push(
