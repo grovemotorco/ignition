@@ -25,6 +25,8 @@ export type ExecInput = {
   sudo?: boolean | undefined
   /** Working directory for command execution. */
   cwd?: string | undefined
+  /** POSIX shell preamble to run before the command (e.g., sourcing files, exporting variables). */
+  shell?: string | undefined
   /** Environment variables to set. */
   env?: Record<string, string> | undefined
   /** If false, non-zero exit codes are not treated as failures. Default: true. */
@@ -53,26 +55,15 @@ type ExecGuard = {
   command: string
 }
 
+const SHELL_PREAMBLE_FAILURE_SENTINEL = "__IGNITION_SHELL_PREAMBLE_FAILED__"
+const shellPreambleFailurePattern = new RegExp(
+  `(?:^|\\n)${SHELL_PREAMBLE_FAILURE_SENTINEL}:(\\d+)(?:\\n|$)`,
+)
+
 /** Build the full command string from input options. */
 function buildCommand(input: ExecInput): string {
-  let cmd = input.command
-
-  if (input.env && Object.keys(input.env).length > 0) {
-    const envPrefix = Object.entries(input.env)
-      .map(([k, v]) => `${k}=${shellQuote(v)}`)
-      .join(" ")
-    cmd = `${envPrefix} ${cmd}`
-  }
-
-  if (input.cwd) {
-    cmd = `cd ${shellQuote(input.cwd)} && ${cmd}`
-  }
-
-  if (input.sudo) {
-    cmd = `sudo sh -c ${shellQuote(cmd)}`
-  }
-
-  return cmd
+  const base = input.shell ? wrapWithShellPreamble(input.command, input.shell) : input.command
+  return wrapCommand(input, base)
 }
 
 /** Quote a string for safe shell interpolation. */
@@ -121,12 +112,97 @@ function getUnsafeCheckGuard(input: ExecInput): ExecGuard | undefined {
 }
 
 function buildGuardCommand(input: ExecInput, guard: ExecGuard): string {
-  return buildCommand({
-    command: guard.command,
-    sudo: input.sudo,
-    cwd: input.cwd,
-    env: input.env,
-  })
+  const base = input.shell
+    ? wrapWithShellPreamble(guard.command, input.shell, { markPreambleFailure: true })
+    : guard.command
+  return wrapCommand(input, base)
+}
+
+function wrapCommand(input: Pick<ExecInput, "sudo" | "cwd" | "env">, command: string): string {
+  let cmd = command
+
+  if (input.env && Object.keys(input.env).length > 0) {
+    const envPrefix = Object.entries(input.env)
+      .map(([k, v]) => `${k}=${shellQuote(v)}`)
+      .join(" ")
+    cmd = `${envPrefix} ${cmd}`
+  }
+
+  if (input.cwd) {
+    cmd = `cd ${shellQuote(input.cwd)} && ${cmd}`
+  }
+
+  if (input.sudo) {
+    cmd = `sudo sh -c ${shellQuote(cmd)}`
+  }
+
+  return cmd
+}
+
+function wrapWithShellPreamble(
+  command: string,
+  shell: string,
+  options?: { markPreambleFailure?: boolean },
+): string {
+  const lines = ["__ignition_preamble_failed() {", "  __ignition_shell_rc=$1", "  trap - EXIT"]
+
+  if (options?.markPreambleFailure) {
+    lines.push(
+      `  printf '%s:%s\\n' ${shellQuote(SHELL_PREAMBLE_FAILURE_SENTINEL)} "$__ignition_shell_rc" >&2`,
+    )
+  }
+
+  lines.push('  exit "$__ignition_shell_rc"', "}")
+
+  if (options?.markPreambleFailure) {
+    lines.push(
+      "__ignition_preamble_phase=1",
+      `trap '__ignition_shell_rc=$?; if [ "$__ignition_preamble_phase" = 1 ]; then __ignition_preamble_failed "$__ignition_shell_rc"; fi' EXIT`,
+    )
+  }
+
+  lines.push(
+    'if eval "$1"; then',
+    ...(options?.markPreambleFailure ? ["  __ignition_preamble_phase=0", "  trap - EXIT"] : []),
+    '  eval "$2"',
+    "else",
+    "  __ignition_shell_rc=$?",
+    ...(options?.markPreambleFailure ? ["  __ignition_preamble_phase=0"] : []),
+    '  __ignition_preamble_failed "$__ignition_shell_rc"',
+    "fi",
+  )
+
+  return `sh -c ${shellQuote(lines.join("\n"))} -- ${shellQuote(shell)} ${shellQuote(command)}`
+}
+
+function guardShellPreambleFailure(
+  result: ExecOutput,
+): { exitCode: number; stderr: string } | undefined {
+  const match = result.stderr.match(shellPreambleFailurePattern)
+  if (!match) return undefined
+
+  return {
+    exitCode: Number(match[1]),
+    stderr: result.stderr.replace(shellPreambleFailurePattern, "").trim(),
+  }
+}
+
+function assertGuardShellPreambleSucceeded(
+  input: ExecInput,
+  guard: ExecGuard,
+  result: ExecOutput,
+): void {
+  if (!input.shell) return
+
+  const failure = guardShellPreambleFailure(result)
+  if (!failure) return
+
+  throw new SSHCommandError(
+    `shell preamble for ${guard.kind} guard: ${input.shell}`,
+    failure.exitCode,
+    result.stdout,
+    failure.stderr,
+  )
 }
 
 function desiredState(input: ExecInput): Record<string, unknown> {
@@ -167,7 +243,12 @@ export const execSchema: ResourceSchema = {
     "unless and onlyIf do not run during check(), so ignition run --check reports them conservatively as would change",
     "unsafeCheckUnless and unsafeCheckOnlyIf are explicit escape hatches that execute during check(), including ignition run --check",
     "Only one of unless, onlyIf, unsafeCheckUnless, and unsafeCheckOnlyIf may be provided",
-    "Preconditions and unsafe check guards inherit sudo, cwd, and env from the parent input",
+    "Use shell to source files or export variables that the command needs (e.g., NVM, rbenv, pyenv)",
+    "shell is prepended as '<shell> && <command>' — it runs in the same shell session",
+    "when shell is set, env vars apply to both the preamble and the command",
+    "shell runs via 'sh -c' — use POSIX syntax or invoke another shell explicitly if needed",
+    "a failing shell preamble aborts guard evaluation instead of being treated as a false guard",
+    "Preconditions and unsafe check guards inherit sudo, cwd, shell, and env from the parent input",
     "check defaults to true — non-zero exit codes are treated as failures unless check: false",
     "sudo wraps the entire command with sudo sh -c, including cwd and env",
     "env vars are prepended as KEY=VALUE before the command",
@@ -181,6 +262,11 @@ export const execSchema: ResourceSchema = {
       command: { type: "string", description: "The command to execute" },
       sudo: { type: "boolean", description: "Run the command with sudo", default: false },
       cwd: { type: "string", description: "Working directory for command execution" },
+      shell: {
+        type: "string",
+        description:
+          "POSIX shell preamble to run before the command (e.g., sourcing files, exporting variables)",
+      },
       env: {
         type: "object",
         additionalProperties: { type: "string" },
@@ -248,6 +334,16 @@ export const execSchema: ResourceSchema = {
       naturalLanguage: "Run the migration script only if the trigger file exists",
     },
     {
+      title: "Install Node.js via NVM with shell preamble",
+      description: "Use shell to source NVM before running nvm commands",
+      input: {
+        command: "nvm install 24 && nvm alias default 24",
+        shell: 'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"',
+        unless: "node --version | grep -q '^v24'",
+      },
+      naturalLanguage: "Install Node.js 24 via NVM, skipping if already installed",
+    },
+    {
       title: "Unsafe check-time probe",
       description:
         "Opt into running a probe during check mode when you accept dry-run side effects",
@@ -280,6 +376,7 @@ export const execDefinition: ResourceDefinition<ExecInput, ExecOutput> = {
       requireCapability(ctx, "exec", "exec")
       const guardCmd = buildGuardCommand(input, unsafeCheckGuard)
       const result = await ctx.connection.exec(guardCmd)
+      assertGuardShellPreambleSucceeded(input, unsafeCheckGuard, result)
 
       if (unsafeCheckGuard.kind === "unsafeCheckUnless") {
         return result.exitCode === 0
@@ -314,6 +411,7 @@ export const execDefinition: ResourceDefinition<ExecInput, ExecOutput> = {
     if (ctx.phase === "post-check" && applyGuard) {
       requireCapability(ctx, "exec", "exec")
       const result = await ctx.connection.exec(buildGuardCommand(input, applyGuard))
+      assertGuardShellPreambleSucceeded(input, applyGuard, result)
 
       if (applyGuard.kind === "unless") {
         return result.exitCode === 0
@@ -363,6 +461,7 @@ export const execDefinition: ResourceDefinition<ExecInput, ExecOutput> = {
     const applyGuard = getApplyGuard(input)
     if (applyGuard) {
       const guardResult = await ctx.connection.exec(buildGuardCommand(input, applyGuard))
+      assertGuardShellPreambleSucceeded(input, applyGuard, guardResult)
       if (applyGuard.kind === "unless" && guardResult.exitCode === 0) {
         skipApply({
           exitCode: guardResult.exitCode,

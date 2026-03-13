@@ -53,5 +53,8 @@ export default async function (ctx: ExecutionContext): Promise<void> {
   })
 
   // 6. Show running containers from this example
-  await exec({ command: 'docker ps --filter "label=ignition.example=docker" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"' })
+  await exec({
+    command:
+      'docker ps --filter "label=ignition.example=docker" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"',
+  })
 }

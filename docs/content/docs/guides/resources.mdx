@@ -119,6 +119,10 @@ from read-only checks alone.
 `exec` also exposes `unsafeCheckUnless` and `unsafeCheckOnlyIf` as explicit escape hatches when you
 intentionally want a command to run during `check()` and accept dry-run side effects.
 
+When an `exec` command needs setup such as sourcing NVM or exporting vars, use `shell` to run a
+POSIX shell preamble before the main command. The preamble shares the same shell session as the
+command, and the same `sudo`, `cwd`, and `env` settings also apply to `unless` / `onlyIf` guards.
+
 For the full API of each resource, see the individual reference pages:
 
 - [apt](/docs/reference/resources/apt)
