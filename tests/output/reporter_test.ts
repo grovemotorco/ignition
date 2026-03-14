@@ -312,6 +312,211 @@ test("PrettyReporter — strips terminal control sequences from streamed output"
 })
 
 // ---------------------------------------------------------------------------
+// PrettyReporter — diff rendering
+// ---------------------------------------------------------------------------
+
+test("PrettyReporter — renders field diffs for changed resources", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({ writer, mode: "check" })
+
+  reporter.resourceEnd(
+    stubResult({
+      type: "file",
+      name: "/etc/nginx/nginx.conf",
+      status: "changed",
+      durationMs: 150,
+      current: { exists: true, mode: "644", owner: "root" },
+      desired: { state: "present", mode: "755", owner: "deploy" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).toContain("- mode: 644")
+  expect(text).toContain("+ mode: 755")
+  expect(text).toContain("- owner: root")
+  expect(text).toContain("+ owner: deploy")
+})
+
+test("PrettyReporter — renders content diffs for file resources", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({ writer, mode: "check" })
+
+  reporter.resourceEnd(
+    stubResult({
+      type: "file",
+      name: "/etc/motd",
+      status: "changed",
+      durationMs: 100,
+      current: { exists: true, content: "hello\nworld" },
+      desired: { state: "present", content: "hello\nuniverse" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).toContain("- world")
+  expect(text).toContain("+ universe")
+})
+
+test("PrettyReporter — does not render diffs for ok resources", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({ writer, mode: "check" })
+
+  reporter.resourceEnd(
+    stubResult({
+      status: "ok",
+      current: { mode: "644" },
+      desired: { state: "present", mode: "644" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).not.toContain("- ")
+  expect(text).not.toContain("+ ")
+})
+
+test("PrettyReporter — does not render diffs when current/desired are undefined", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({ writer, mode: "check" })
+
+  reporter.resourceEnd(stubResult({ status: "changed", durationMs: 100 }))
+
+  const text = stripAnsiCode(output())
+  expect(text).toContain("would change")
+  expect(text).not.toContain("- ")
+  expect(text).not.toContain("+ ")
+})
+
+test("PrettyReporter — does not render diffs for failed resources", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({ writer, mode: "apply" })
+
+  reporter.resourceEnd(
+    stubResult({
+      status: "failed",
+      current: { mode: "644" },
+      desired: { state: "present", mode: "755" },
+      error: new Error("permission denied"),
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).not.toContain("- mode")
+  expect(text).not.toContain("+ mode")
+})
+
+test("PrettyReporter — check mode label shows alongside diff output", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({ writer, mode: "check" })
+
+  reporter.resourceEnd(
+    stubResult({
+      status: "changed",
+      durationMs: 500,
+      current: { mode: "644" },
+      desired: { state: "present", mode: "755" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).toContain("would change")
+  expect(text).toContain("- mode: 644")
+  expect(text).toContain("+ mode: 755")
+})
+
+// ---------------------------------------------------------------------------
+// PrettyReporter — redaction in diffs
+// ---------------------------------------------------------------------------
+
+test("PrettyReporter — redacts sensitive values in diffs", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({
+    writer,
+    mode: "check",
+    redactionPolicy: { patterns: ["**.password"] },
+  })
+
+  reporter.resourceEnd(
+    stubResult({
+      type: "file",
+      name: "/etc/app.conf",
+      status: "changed",
+      durationMs: 100,
+      current: { password: "old-secret", mode: "644" },
+      desired: { password: "new-secret", mode: "755" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).not.toContain("old-secret")
+  expect(text).not.toContain("new-secret")
+  expect(text).toContain("- mode: 644")
+  expect(text).toContain("+ mode: 755")
+})
+
+test("PrettyReporter — redaction applies to both current and desired sides", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({
+    writer,
+    mode: "check",
+    redactionPolicy: { patterns: ["**.secret"] },
+  })
+
+  reporter.resourceEnd(
+    stubResult({
+      status: "changed",
+      durationMs: 100,
+      current: { secret: "alpha" },
+      desired: { secret: "beta" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).not.toContain("alpha")
+  expect(text).not.toContain("beta")
+})
+
+test("PrettyReporter — non-matching fields displayed normally alongside redacted", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({
+    writer,
+    mode: "check",
+    redactionPolicy: { patterns: ["**.password"] },
+  })
+
+  reporter.resourceEnd(
+    stubResult({
+      status: "changed",
+      durationMs: 100,
+      current: { password: "secret", port: "80" },
+      desired: { password: "new-secret", port: "443" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).toContain("- port: 80")
+  expect(text).toContain("+ port: 443")
+  expect(text).not.toContain("secret")
+})
+
+test("PrettyReporter — no redaction policy renders all values", () => {
+  const { writer, output } = fakeWriter(false)
+  const reporter = new PrettyReporter({ writer, mode: "check" })
+
+  reporter.resourceEnd(
+    stubResult({
+      status: "changed",
+      durationMs: 100,
+      current: { password: "visible" },
+      desired: { password: "also-visible" },
+    }),
+  )
+
+  const text = stripAnsiCode(output())
+  expect(text).toContain("- password: visible")
+  expect(text).toContain("+ password: also-visible")
+})
+
+// ---------------------------------------------------------------------------
 // formatDuration
 // ---------------------------------------------------------------------------
 

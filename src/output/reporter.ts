@@ -7,10 +7,20 @@
  */
 
 import type { HostRunSummary, Reporter, ResourceResult, RunMode } from "../core/types.ts"
+import type { RedactionPolicy } from "../core/serialize.ts"
+import { redact } from "../core/serialize.ts"
 import { Spinner } from "./spinner.ts"
 import { stderrWriter } from "./stderr.ts"
-import { statusSymbol, statusColor, muted, bold, error as errorColor } from "../lib/colors.ts"
+import {
+  statusSymbol,
+  statusColor,
+  muted,
+  bold,
+  error as errorColor,
+  success,
+} from "../lib/colors.ts"
 import { formatDuration } from "../lib/formatters/output.ts"
+import { computeChanges, formatDiffLines } from "../lib/formatters/diff.ts"
 
 // Re-export for public API compatibility
 export { formatDuration } from "../lib/formatters/output.ts"
@@ -54,6 +64,7 @@ export type PrettyReporterOptions = {
     | undefined
   /** The run mode (apply or check). */
   mode: RunMode
+  redactionPolicy?: RedactionPolicy | undefined
 }
 
 /**
@@ -74,11 +85,13 @@ export class PrettyReporter implements Reporter {
   #spinner: Spinner
   #outputBuffers: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" }
   #streamingActive = false
+  #redactionPolicy?: RedactionPolicy | undefined
 
   constructor(opts: PrettyReporterOptions) {
     this.#writer = opts.writer ?? stderrWriter
     this.#mode = opts.mode
     this.#spinner = new Spinner({ writer: this.#writer })
+    this.#redactionPolicy = opts.redactionPolicy
   }
 
   /** Report the start of a resource execution. */
@@ -102,6 +115,7 @@ export class PrettyReporter implements Reporter {
 
     this.#writeln(`  ${typePad} ${result.name}`)
     this.#writeln(`        ${symbol} ${statusLabel}  ${timing}${cacheLabel}`)
+    this.#renderDiff(result)
     if (result.status === "failed" && result.error) {
       this.#writeln(`        ${errorColor(result.error.message)}`)
     }
@@ -187,7 +201,32 @@ export class PrettyReporter implements Reporter {
     this.#outputBuffers[stream] = ""
   }
 
-  /** Format cache hit/miss indicator. */
+  #renderDiff(result: ResourceResult): void {
+    if (result.status !== "changed") return
+    if (!result.current || !result.desired) return
+
+    const current = (
+      this.#redactionPolicy ? redact(result.current, this.#redactionPolicy) : result.current
+    ) as Record<string, unknown>
+    const desired = (
+      this.#redactionPolicy ? redact(result.desired, this.#redactionPolicy) : result.desired
+    ) as Record<string, unknown>
+
+    const changes = computeChanges(current, desired)
+    if (changes.length === 0) return
+
+    const lines = formatDiffLines(changes, current, desired)
+    for (const line of lines) {
+      if (line.startsWith("- ")) {
+        this.#writeln(`          ${errorColor(line)}`)
+      } else if (line.startsWith("+ ")) {
+        this.#writeln(`          ${success(line)}`)
+      } else {
+        this.#writeln(`          ${line}`)
+      }
+    }
+  }
+
   #formatCacheStatus(result: ResourceResult): string {
     if (result.cacheHit === undefined) return ""
     if (result.cacheHit) {

@@ -222,6 +222,14 @@ export const fileDefinition: ResourceDefinition<FileInput, FileOutput> = {
 
       if (remoteChecksum !== localChecksum) {
         diffs.checksum = localChecksum
+
+        const sizeResult = await ctx.connection.exec(`stat -c '%s' ${shellQuote(input.path)}`)
+        const fileSize = parseInt(sizeResult.stdout.trim(), 10)
+        if (!isNaN(fileSize) && fileSize <= 65536) {
+          const catResult = await ctx.connection.exec(`cat ${shellQuote(input.path)}`)
+          current.content = catResult.stdout
+          diffs.content = desiredContent
+        }
       }
     }
 

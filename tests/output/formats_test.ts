@@ -217,6 +217,88 @@ test("JsonFormatter — preserves error serialization when redaction is enabled"
 })
 
 // ---------------------------------------------------------------------------
+// JsonFormatter — diff data
+// ---------------------------------------------------------------------------
+
+test("JsonFormatter — includes changes array on changed resources with current/desired", () => {
+  const formatter = new JsonFormatter()
+  const summary = stubRunSummary({
+    hosts: [
+      stubHostSummary({
+        results: [
+          {
+            type: "file",
+            name: "/etc/motd",
+            status: "changed",
+            durationMs: 100,
+            current: { exists: true, mode: "644" },
+            desired: { state: "present", mode: "755" },
+          },
+        ],
+      }),
+    ],
+  })
+
+  const output = formatter.format(summary)
+  const parsed = JSON.parse(output)
+  const result = parsed.hosts[0].results[0]
+
+  expect(result.changes).toEqual([{ field: "mode", current: "644", desired: "755" }])
+})
+
+test("JsonFormatter — does not include changes on ok resources", () => {
+  const formatter = new JsonFormatter()
+  const summary = stubRunSummary({
+    hosts: [
+      stubHostSummary({
+        results: [
+          {
+            type: "apt",
+            name: "nginx",
+            status: "ok",
+            durationMs: 150,
+            current: { installed: { nginx: "1.18" } },
+            desired: { state: "present" },
+          },
+        ],
+      }),
+    ],
+  })
+
+  const output = formatter.format(summary)
+  const parsed = JSON.parse(output)
+
+  expect(parsed.hosts[0].results[0].changes).toEqual(undefined)
+})
+
+test("JsonFormatter — redacted values in changes show [REDACTED]", () => {
+  const formatter = new JsonFormatter({ redactionPolicy: { patterns: ["**.password"] } })
+  const summary = stubRunSummary({
+    hosts: [
+      stubHostSummary({
+        results: [
+          {
+            type: "file",
+            name: "/etc/app.conf",
+            status: "changed",
+            durationMs: 100,
+            current: { password: "old-secret" },
+            desired: { password: "new-secret" },
+          },
+        ],
+      }),
+    ],
+  })
+
+  const output = formatter.format(summary)
+  const parsed = JSON.parse(output)
+  const result = parsed.hosts[0].results[0]
+
+  expect(result.current.password).toEqual("[REDACTED]")
+  expect(result.desired.password).toEqual("[REDACTED]")
+})
+
+// ---------------------------------------------------------------------------
 // MinimalFormatter — apply mode
 // ---------------------------------------------------------------------------
 

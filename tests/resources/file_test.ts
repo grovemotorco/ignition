@@ -133,10 +133,15 @@ test("check() returns in desired state when content checksum matches", async () 
 test("check() returns not in desired state when content checksum differs", async () => {
   let callCount = 0
   const ctx = makeCtx({
-    execFn: () => {
+    execFn: (cmd) => {
       callCount++
       if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: "EXISTS\n", stderr: "" })
-      return Promise.resolve({ exitCode: 0, stdout: "abc123\n", stderr: "" })
+      if (cmd.includes("sha256sum"))
+        return Promise.resolve({ exitCode: 0, stdout: "abc123\n", stderr: "" })
+      if (cmd.includes("stat")) return Promise.resolve({ exitCode: 0, stdout: "11\n", stderr: "" })
+      if (cmd.startsWith("cat"))
+        return Promise.resolve({ exitCode: 0, stdout: "old content", stderr: "" })
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
     },
   })
 
@@ -413,4 +418,109 @@ test("check() returns in desired state when file exists and no content specified
   const result = await fileDefinition.check(ctx, { path: "/etc/app.conf" })
 
   expect(result.inDesiredState).toEqual(true)
+})
+
+// ---------------------------------------------------------------------------
+// check() — content diff support
+// ---------------------------------------------------------------------------
+
+test("check() includes content in current/desired when content mode and under size cap", async () => {
+  const remoteContent = "listen 80;"
+  let callCount = 0
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      callCount++
+      if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: "EXISTS\n", stderr: "" })
+      if (cmd.includes("sha256sum"))
+        return Promise.resolve({ exitCode: 0, stdout: "different-checksum\n", stderr: "" })
+      if (cmd.includes("stat")) return Promise.resolve({ exitCode: 0, stdout: "10\n", stderr: "" })
+      if (cmd.startsWith("cat"))
+        return Promise.resolve({ exitCode: 0, stdout: remoteContent, stderr: "" })
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await fileDefinition.check(ctx, {
+    path: "/etc/nginx.conf",
+    content: "listen 443 ssl;",
+  })
+
+  expect(result.inDesiredState).toEqual(false)
+  expect(result.current.content).toEqual("listen 80;")
+  expect(result.desired.content).toEqual("listen 443 ssl;")
+})
+
+test("check() skips content fetch when file exceeds 64 KB", async () => {
+  const commands: string[] = []
+  let callCount = 0
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      callCount++
+      commands.push(cmd)
+      if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: "EXISTS\n", stderr: "" })
+      if (cmd.includes("sha256sum"))
+        return Promise.resolve({ exitCode: 0, stdout: "different-checksum\n", stderr: "" })
+      if (cmd.includes("stat"))
+        return Promise.resolve({ exitCode: 0, stdout: "100000\n", stderr: "" })
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await fileDefinition.check(ctx, {
+    path: "/etc/bigfile.conf",
+    content: "new content",
+  })
+
+  expect(result.inDesiredState).toEqual(false)
+  expect(result.current.content).toEqual(undefined)
+  expect(result.desired.content).toEqual(undefined)
+  expect(commands.some((c) => c.startsWith("cat"))).toEqual(false)
+})
+
+test("check() skips content diff for source mode", async () => {
+  let callCount = 0
+  const ctx = makeCtx({
+    execFn: (cmd) => {
+      callCount++
+      if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: "EXISTS\n", stderr: "" })
+      if (cmd.includes("stat"))
+        return Promise.resolve({ exitCode: 0, stdout: "644 root root\n", stderr: "" })
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await fileDefinition.check(ctx, {
+    path: "/etc/app.conf",
+    source: "/local/app.conf",
+    mode: "0755",
+  })
+
+  expect(result.inDesiredState).toEqual(false)
+  expect(result.current.content).toEqual(undefined)
+})
+
+test("check() includes content in template mode when under size cap", async () => {
+  let callCount = 0
+  const ctx = makeCtx({
+    vars: { port: 443 },
+    execFn: (cmd) => {
+      callCount++
+      if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: "EXISTS\n", stderr: "" })
+      if (cmd.includes("sha256sum"))
+        return Promise.resolve({ exitCode: 0, stdout: "old-checksum\n", stderr: "" })
+      if (cmd.includes("stat")) return Promise.resolve({ exitCode: 0, stdout: "20\n", stderr: "" })
+      if (cmd.startsWith("cat"))
+        return Promise.resolve({ exitCode: 0, stdout: "listen 80;", stderr: "" })
+      return Promise.resolve({ exitCode: 0, stdout: "", stderr: "" })
+    },
+  })
+
+  const result = await fileDefinition.check(ctx, {
+    path: "/etc/nginx.conf",
+    template: (vars) => `listen ${String(vars.port)};`,
+  })
+
+  expect(result.inDesiredState).toEqual(false)
+  expect(result.current.content).toEqual("listen 80;")
+  expect(result.desired.content).toEqual("listen 443;")
 })

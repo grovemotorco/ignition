@@ -11,6 +11,7 @@ import type { RedactionPolicy } from "../core/serialize.ts"
 import { redact } from "../core/serialize.ts"
 import type { LifecycleEvent } from "./events.ts"
 import { formatDuration } from "../lib/formatters/output.ts"
+import { computeChanges } from "../lib/formatters/diff.ts"
 
 // ---------------------------------------------------------------------------
 // JsonFormatter
@@ -35,8 +36,20 @@ export class JsonFormatter {
 
   /** Format a RunSummary as a JSON string. */
   format(summary: RunSummary): string {
-    const output = this.#redactionPolicy ? redact(summary, this.#redactionPolicy) : summary
-    return JSON.stringify(output, serializeError, 2)
+    const redacted = this.#redactionPolicy
+      ? (redact(summary, this.#redactionPolicy) as RunSummary)
+      : summary
+    const withChanges = {
+      ...redacted,
+      hosts: redacted.hosts.map((host) => ({
+        ...host,
+        results: host.results.map((result) => {
+          if (result.status !== "changed" || !result.current || !result.desired) return result
+          return { ...result, changes: computeChanges(result.current, result.desired) }
+        }),
+      })),
+    }
+    return JSON.stringify(withChanges, serializeError, 2)
   }
 
   /** Format a single lifecycle event as a JSON string. */
